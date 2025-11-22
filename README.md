@@ -41,6 +41,17 @@ On first run:
 - You'll be prompted to create a master password and re-enter it. The app will create the metadata and secrets files on your local machine.
 - Keep the master password safe. If you lose it, the application cannot recover the secrets (they are encrypted with a key derived from the password).
 
+Container (optional Docker environment)
+--------------------------------------
+- The `container/` directory includes a Dockerfile that builds an Ubuntu-based image with the dependencies needed to run the CLI in an isolated environment. This is useful to test the project in a disposable environment before running it on your local machine.
+- Important: by default the container does not map any host directories or volumes. Any data (secrets or metadata) created inside the container will be lost when the container stops or you log out, unless you explicitly mount a host directory or Docker volume for persistence.
+
+To build and run the container:
+
+    cd container
+    docker build -t simple-credential-manager .
+    docker run -it --rm simple-credential-manager
+
 License
 -------
 This project includes a LICENSE file at the repository root. Check it for licensing details.
