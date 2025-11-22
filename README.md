@@ -5,6 +5,9 @@ A minimal, local, file-backed credential manager written in Python.
 It stores encrypted secrets (name, username, password, URL, comments) on the local machine and protects them with a
 master password.
 
+![SimpleCredentialManager.png](images/SimpleCredentialManager.png)
+![SimpleCredentialManager1.png](images/SimpleCredentialManager1.png)
+
 Features & Functionality
 ------------------------
 
