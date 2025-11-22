@@ -1,0 +1,16 @@
+# Force all text files to use LF line endings in repo
+* text eol=lf
+
+# But preserve Windows executables/binaries correctly
+*.sh text eol=lf        # Shell scripts must be LF
+*.py text eol=lf         # Python also should be LF
+*.bat text eol=crlf      # Windows batch files should stay CRLF
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Prevent conversion on binary files
+*.png binary
+*.jpg binary
+*.zip binary
+*.exe binary
+*.dll binary
