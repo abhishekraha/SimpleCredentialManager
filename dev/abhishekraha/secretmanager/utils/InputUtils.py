@@ -1,14 +1,14 @@
 import sys
 from getpass import getpass
 
-import pwinput
-
 
 def secure_input(prompt):
     if sys.stdin.isatty():
         try:
             return getpass(prompt)
         except Exception:
-            return pwinput.pwinput(prompt, mask="*")
+            print("[WARNING] Your password will be visible in plain text while typing.")
+            return input(prompt)
     else:
-        return pwinput.pwinput(prompt, mask="*")
+        print("[WARNING] Your password will be visible in plain text while typing.")
+        return input(prompt)

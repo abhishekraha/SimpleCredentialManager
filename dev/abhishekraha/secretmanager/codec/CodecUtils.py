@@ -3,7 +3,7 @@ from base64 import urlsafe_b64encode
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-DERIVED_KEY: bytes
+DERIVED_KEY = None
 
 
 def get_derived_key():
@@ -23,7 +23,7 @@ def set_derived_key(key):
     DERIVED_KEY = key
 
 
-def derive_key(master_password: str, salt: bytes):
+def derive_key(master_password, salt):
     kdf = Scrypt(
         salt=salt,
         length=32,  # 32 bytes = 256-bit key
@@ -35,13 +35,13 @@ def derive_key(master_password: str, salt: bytes):
     set_derived_key(urlsafe_b64encode(key))  # Fernet-friendly format
 
 
-def encrypt_password(plaintext: str) -> bytes:
+def encrypt_password(plaintext):
     encoder = Fernet(get_derived_key())
     token = encoder.encrypt(plaintext.encode())
     return token
 
 
-def decrypt_password(token: bytes) -> str:
+def decrypt_password(token):
     decoder = Fernet(get_derived_key())
     plaintext = decoder.decrypt(token)
     return plaintext.decode()

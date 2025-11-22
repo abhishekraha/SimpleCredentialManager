@@ -12,6 +12,7 @@ Key features
   encryption.
 - Strong crypto primitives: uses the cryptography package and Fernet (AES-based) for encryption/decryption.
 - Local storage: secrets and metadata are stored as pickled files on the local machine (in application-managed folders).
+- Authentication with attempt limits: the CLI prompts for the master password and enforces a maximum number of incorrect attempts; when a configured threshold is reached, the app warns the user and at the maximum attempts the stored data may be wiped for security.
 - CLI launcher: a small CLI entrypoint (`SimpleCredentialManagerCli.py`) that initializes the app and prompts for the
   master password.
 - Cross-platform helper scripts: `SimpleCredentialManagerCli.bat` (Windows) and `SimpleCredentialManagerCli.sh` (POSIX)
@@ -47,10 +48,13 @@ Usage
 
 On first run:
 
-- You'll be prompted to create a master password and re-enter it. The app will create the metadata and secrets files on
-  your local machine.
-- Keep the master password safe. If you lose it, the application cannot recover the secrets (they are encrypted with a
-  key derived from the password).
+- You'll be prompted to create a master password and re-enter it. The app will create the metadata and secrets files on your local machine.
+- Keep the master password safe. If you lose it, the application cannot recover the secrets (they are encrypted with a key derived from the password).
+
+Authentication behavior:
+
+- After initialization, the CLI will prompt for the master password and continue prompting until either the correct password is entered or the maximum allowed incorrect attempts is reached.
+- If the incorrect-attempt threshold is reached the app prints a warning. If the maximum incorrect attempts is reached the app performs a failsafe action which may remove stored secrets and metadata and exit.
 
 Container (optional Docker environment)
 --------------------------------------
