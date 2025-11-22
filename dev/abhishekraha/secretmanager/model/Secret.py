@@ -1,5 +1,15 @@
 from datetime import datetime
 
+from dev.abhishekraha.secretmanager.utils.Utils import secure_input
+
+
+def create_secret(secret_name):
+    username = input("Enter username: ")
+    password = secure_input("Enter password: ")
+    url = input("Enter URL (optional): ")
+    comments = input("Enter comments (optional): ")
+    return Secret(secret_name, username, password, url, comments)
+
 
 class Secret:
     def __init__(self, name, username, password, url, comments):
@@ -9,6 +19,7 @@ class Secret:
         self._url = url
         self._comments = comments
         self._create_date = datetime.now()
+        self._update_date = None
 
     def set_name(self, name):
         self._name = name
@@ -43,6 +54,12 @@ class Secret:
     def get_create_date(self):
         return self._create_date
 
+    def get_update_date(self):
+        return self._update_date
+
+    def set_update_date(self, update_date):
+        self._update_date = update_date
+
     def peak(self):
         return f"""
         Name: {self._name}
@@ -51,4 +68,5 @@ class Secret:
         URL: {self._url}
         Comments: {self._comments}
         Date Created: {self._create_date}
+        Date Updated: {self._update_date}
         """
