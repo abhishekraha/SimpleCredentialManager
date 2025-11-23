@@ -9,8 +9,8 @@ class SecretManagerMetaDataManager:
     def __init__(self):
         self._salt = os.urandom(16)
         self._incorrect_password_attempts = 0
-        self._incorrect_password_threshold = 3  # Warn user after 3 incorrect attempts
-        self._max_incorrect_password_attempts = 5
+        self._incorrect_password_threshold = 2  # Warn user after 2 incorrect attempts
+        self._max_incorrect_password_attempts = 3
         self._encrypted_master_password = None
 
     def get_salt(self):

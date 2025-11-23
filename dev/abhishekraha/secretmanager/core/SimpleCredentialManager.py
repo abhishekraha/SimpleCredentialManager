@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from dev.abhishekraha.secretmanager.codec import SerDeUtils
+from dev.abhishekraha.secretmanager.codec import SerDeUtils, CodecUtils
 from dev.abhishekraha.secretmanager.codec.CodecUtils import derive_key
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_DIR, APP_CONFIG_DIR, SECRET_FILE, \
     SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV
@@ -117,7 +117,8 @@ def update_secret():
     if secret:
         print("Leave a field blank to keep it unchanged.")
         username = input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username()
-        password = secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password()
+        password = secure_input("Enter new password (leave blank to keep unchanged): ") or CodecUtils.decrypt_password(
+            secret.get_password())
         url = input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url()
         comments = input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments()
 

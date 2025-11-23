@@ -1,11 +1,12 @@
 from datetime import datetime
 
+from dev.abhishekraha.secretmanager.codec import CodecUtils
 from dev.abhishekraha.secretmanager.utils.Utils import secure_input
 
 
 def create_secret(secret_name):
     username = input("Enter username: ")
-    password = secure_input("Enter password: ")
+    password = CodecUtils.encrypt_password(secure_input("Enter password: "))
     url = input("Enter URL (optional): ")
     comments = input("Enter comments (optional): ")
     return Secret(secret_name, username, password, url, comments)
@@ -33,11 +34,11 @@ class Secret:
     def get_username(self):
         return self._username
 
-    def set_password(self, password):
-        self._password = password
+    def set_password(self, plain_text_password):
+        self._password = CodecUtils.encrypt_password(plain_text_password)
 
     def get_password(self):
-        return self._password
+        return CodecUtils.decrypt_password(self._password)
 
     def set_url(self, url):
         self._url = url
@@ -62,11 +63,11 @@ class Secret:
 
     def peak(self):
         return f"""
-        Name: {self._name}
-        Username: {self._username}
-        Password: {self._password}
-        URL: {self._url}
-        Comments: {self._comments}
-        Date Created: {self._create_date}
-        Date Updated: {self._update_date}
+        Name: {self.get_name()}
+        Username: {self.get_username()}
+        Password: {self.get_password()}
+        URL: {self.get_url()}
+        Comments: {self.get_comments()}
+        Date Created: {self.get_create_date()}
+        Date Updated: {self.get_update_date()}
         """
