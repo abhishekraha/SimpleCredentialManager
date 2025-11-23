@@ -5,6 +5,12 @@ A minimal, local, file-backed credential manager written in Python.
 It stores encrypted secrets (name, username, password, URL, comments) on the local machine and protects them with a
 master password.
 
+Important Disclaimer
+--------------------
+
+This project is a hobby project and may contain bugs or incomplete features. Use cautiously and do not rely on it for
+critical or production secrets without reviewing the code and understanding the risks.
+
 ![SimpleCredentialManager.png](images/SimpleCredentialManager.png)
 ![SimpleCredentialManager1.png](images/SimpleCredentialManager1.png)
 
@@ -12,27 +18,32 @@ Features & Functionality
 ------------------------
 
 1) First initialization
-    - Interactive setup on first run prompts you to create and confirm a master password. This prepares the app for
-      secure use.
+    - On the first run the CLI performs an interactive setup and prompts you to create and confirm a master password.
+      This prepares the application for secure use.
 
 2) Master password (critical)
-    - The master password is the single key to the vault — keep it safe. All stored secrets are encrypted and require
-      this password to access.
+    - The master password is the single, critical key for the vault. All stored secrets are encrypted and require this
+      password to access. If you lose the master password the application cannot recover the secrets.
 
 3) Failsafe & warnings
-    - The application counts incorrect master-password attempts. It warns you when a threshold is reached and will
-      perform a failsafe action (which may remove stored data) if the maximum incorrect attempts are exceeded — this is
-      a security feature, not a bug.
+    - The application tracks incorrect master-password attempts and will warn when thresholds are reached. A failsafe
+      protection may activate to protect the data (which can result in data being removed) — treat this as a security
+      feature and act cautiously.
 
 4) Local storage
-    - All data is stored locally on your machine (no cloud). You control where it runs and how data is persisted.
+    - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
+      default.
 
-5) What the CLI supports (menu options)
+5) CLI menu options
     - Add Secret: interactively add a new secret.
-    - View Secret: show details for a stored secret.
+    - View Secret: view details for a stored secret (requires master password).
     - Update Secret: modify an existing secret.
     - Delete Secret: remove a secret from the store.
-    - List All Secrets: show a list of stored secret names.
+    - List All Secrets: display a list of stored secret names.
+    - Export to CSV: export stored entries to a CSV file (to a default app location by default); prompts before
+      overwriting an existing file and allows you to choose a different name/location.
+    - Import from CSV: import entries from a CSV file; prompts before overwriting existing entries or files and lets you
+      select the import file.
     - Exit: quit the CLI.
 
 Installation
@@ -73,7 +84,7 @@ On first run:
 Container (optional Docker environment)
 --------------------------------------
 
-- The `container/` directory includes a Dockerfile that builds an Ubuntu-based image with the dependencies needed to run
+- The `container/` directory contains a Dockerfile that builds an Ubuntu-based image with the dependencies needed to run
   the CLI in an isolated environment. This is useful to test the project in a disposable environment before running it
   on your local machine.
 - Important: by default the container does not map any host directories or volumes. Any data (secrets or metadata)
