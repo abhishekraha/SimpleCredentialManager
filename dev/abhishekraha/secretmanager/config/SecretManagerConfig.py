@@ -10,6 +10,6 @@ DEFAULT_EXPORT_CSV = Path.joinpath(APP_HOME_DIR, 'secrets_export.csv')
 HEADER = """
 ======================================================    
             Simple Credentials Manager 
-                                        v1.0.1
+                                        v1.1.0
 ======================================================    
 """

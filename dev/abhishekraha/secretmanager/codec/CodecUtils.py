@@ -35,13 +35,15 @@ def derive_key(master_password, salt):
     set_derived_key(urlsafe_b64encode(key))  # Fernet-friendly format
 
 
-def encrypt_password(plaintext):
+def encrypt(plaintext, is_file = False):
+    if not is_file:
+        plaintext = plaintext.encode()
     encoder = Fernet(get_derived_key())
-    token = encoder.encrypt(plaintext.encode())
+    token = encoder.encrypt(plaintext)
     return token
 
 
-def decrypt_password(token):
+def decrypt(token, is_file = False):
     decoder = Fernet(get_derived_key())
     plaintext = decoder.decrypt(token)
-    return plaintext.decode()
+    return plaintext.decode() if not is_file else plaintext

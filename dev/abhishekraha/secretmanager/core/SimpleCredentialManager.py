@@ -21,17 +21,12 @@ def initialize():
     APP_HOME_DIR.mkdir(parents=True, exist_ok=True)
     APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    is_app_data_exists = SECRET_FILE.exists()
-    is_app_meta_data_exists = SECRET_MANAGER_META_DATA.exists()
 
-    if not is_app_data_exists:
-        SerDeUtils.dump({}, SECRET_FILE)
-    SECRETS = SerDeUtils.load(SECRET_FILE)
 
-    if not is_app_meta_data_exists:
+
+    if not SECRET_MANAGER_META_DATA.exists():
         _initialize_metadata()
     METADATA_MANAGER = SerDeUtils.load(SECRET_MANAGER_META_DATA)
-
 
 def _initialize_metadata(re_attempt=False):
     metadata = SecretManagerMetaDataManager()
@@ -68,6 +63,7 @@ def authenticate(re_attempt=False):
     try:
         if METADATA_MANAGER.validate_master_password(user_password):
             METADATA_MANAGER.reset_incorrect_password_attempts()
+
             return True
         else:
             raise
@@ -75,6 +71,12 @@ def authenticate(re_attempt=False):
         METADATA_MANAGER.increment_incorrect_password_attempts()
         print("master password is invalid")
         return authenticate(True)
+
+def load_secrets():
+    global SECRETS
+    if not SECRET_FILE.exists():
+        SerDeUtils.dump_secrets({}, SECRET_FILE)
+    SECRETS = SerDeUtils.load_secrets(SECRET_FILE)
 
 
 def failsafe():
@@ -98,7 +100,7 @@ def add_secret():
         return
     secret = create_secret(secret_name)
     SECRETS[secret_name] = secret
-    SerDeUtils.dump(SECRETS, SECRET_FILE)
+    SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
     print("Secret added successfully.")
 
 
@@ -117,7 +119,7 @@ def update_secret():
     if secret:
         print("Leave a field blank to keep it unchanged.")
         username = input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username()
-        password = secure_input("Enter new password (leave blank to keep unchanged): ") or CodecUtils.decrypt_password(
+        password = secure_input("Enter new password (leave blank to keep unchanged): ") or CodecUtils.decrypt(
             secret.get_password())
         url = input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url()
         comments = input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments()
@@ -128,7 +130,7 @@ def update_secret():
         secret.set_comments(comments)
         secret.set_update_date(datetime.now())
 
-        SerDeUtils.dump(SECRETS, SECRET_FILE)
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
         print("Secret updated successfully.")
     else:
         print("Secret not found.")
@@ -138,7 +140,7 @@ def delete_secret():
     secret_name = input("Enter the name of the secret to delete: ")
     if secret_name in SECRETS:
         del SECRETS[secret_name]
-        SerDeUtils.dump(SECRETS, SECRET_FILE)
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
         print("Secret deleted successfully.")
     else:
         print("Secret not found.")
@@ -251,7 +253,7 @@ def import_secrets():
                 changes_made = True
 
             if changes_made:
-                SerDeUtils.dump(SECRETS, SECRET_FILE)
+                SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
                 print("Import complete and data persisted.")
             else:
                 print("No changes made from import.")

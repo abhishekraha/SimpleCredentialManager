@@ -6,7 +6,7 @@ from dev.abhishekraha.secretmanager.utils.Utils import secure_input
 
 def create_secret(secret_name):
     username = input("Enter username: ")
-    password = CodecUtils.encrypt_password(secure_input("Enter password: "))
+    password = CodecUtils.encrypt(secure_input("Enter password: "))
     url = input("Enter URL (optional): ")
     comments = input("Enter comments (optional): ")
     return Secret(secret_name, username, password, url, comments)
@@ -35,10 +35,10 @@ class Secret:
         return self._username
 
     def set_password(self, plain_text_password):
-        self._password = CodecUtils.encrypt_password(plain_text_password)
+        self._password = CodecUtils.encrypt(plain_text_password)
 
     def get_password(self):
-        return CodecUtils.decrypt_password(self._password)
+        return CodecUtils.decrypt(self._password)
 
     def set_url(self, url):
         self._url = url
