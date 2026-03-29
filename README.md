@@ -8,8 +8,26 @@ master password.
 Important Disclaimer
 --------------------
 
-This project is a hobby project and may contain bugs or incomplete features. Use cautiously and do not rely on it for
-critical or production secrets without reviewing the code and understanding the risks.
+This project is a hobby project and may contain bugs, design flaws, or incomplete features. Do not use it unless you
+have reviewed the code, understood how it stores and protects data, and accepted the risks of a local file-backed
+password store.
+
+Security Warning
+----------------
+
+All secrets, metadata, exports, and audit artifacts are stored on the local machine. If an attacker can copy the vault
+files from the machine, they can attempt offline brute-force attacks against the master password. The application adds
+encryption, lockout/backoff, and audit logging, but it does not make a compromised machine safe.
+
+Use this software only if you understand:
+
+- the master password is the main security boundary
+- local plaintext exports are especially sensitive
+- anyone with sufficient access to the machine or copied vault files can still attempt brute-force recovery offline
+- losing the master password means the encrypted secrets cannot be recovered
+
+Do not treat this project as production-grade security software unless you have independently reviewed and validated the
+implementation for your own use case.
 
 ![SimpleCredentialManager.png](images/SimpleCredentialManager.png)
 ![SimpleCredentialManager1.png](images/SimpleCredentialManager1.png)
@@ -25,10 +43,10 @@ Features & Functionality
     - The master password is the single, critical key for the vault. All stored secrets are encrypted and require this
       password to access. If you lose the master password the application cannot recover the secrets.
 
-3) Failsafe & warnings
-    - The application tracks incorrect master-password attempts and will warn when thresholds are reached. A failsafe
-      protection may activate to protect the data (which can result in data being removed) — treat this as a security
-      feature and act cautiously.
+3) Authentication backoff & audit logging
+    - The application tracks failed master-password attempts.
+    - Repeated failures trigger a temporary lockout with increasing backoff instead of deleting the vault.
+    - Authentication and lockout events are written to a local audit log.
 
 4) Local storage
     - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
