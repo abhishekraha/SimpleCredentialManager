@@ -16,6 +16,6 @@ BUG_REPORT_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
 HEADER = """
 ======================================================    
             Simple Credentials Manager 
-                                        v1.1.0
+                                        v1.1.1
 ======================================================    
 """

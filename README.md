@@ -5,6 +5,15 @@ A minimal, local, file-backed credential manager written in Python.
 It stores encrypted secrets (name, username, password, URL, comments) on the local machine and protects them with a
 master password.
 
+Current Release
+---------------
+
+`v1.1.1`
+
+- deprecates legacy `v2` and `v3` vault logic
+- uses `v4` for new vaults by default
+- automatically migrates deprecated vaults to `v4` after successful login
+
 Important Disclaimer
 --------------------
 
