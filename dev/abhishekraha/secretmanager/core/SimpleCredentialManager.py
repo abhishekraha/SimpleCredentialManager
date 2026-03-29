@@ -26,6 +26,7 @@ def initialize():
     SECRETS = {}
     CodecUtils.clear_derived_key()
 
+
 def _initialize_metadata(re_attempt=False):
     metadata = SecretManagerMetaDataManager()
     print(f"{HEADER}\n\tInitial Setup")
@@ -112,6 +113,7 @@ def authenticate(re_attempt=False):
             failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
             attempts_before_lockout=remaining_attempts,
         )
+
 
 def load_secrets():
     global SECRETS

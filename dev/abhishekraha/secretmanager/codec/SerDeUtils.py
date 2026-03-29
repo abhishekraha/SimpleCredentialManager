@@ -26,6 +26,7 @@ def load(file_name):
             "Metadata file is unreadable or uses an unsupported legacy format."
         ) from exc
 
+
 def dump_secrets(data, file_name, override=False):
     if override and Path(file_name).exists():
         raise FileExistsError(f"File {file_name} already exists")
@@ -36,6 +37,7 @@ def dump_secrets(data, file_name, override=False):
     data_bytes = json.dumps(serialized_secrets, indent=2).encode("utf-8")
     encrypted_bytes = CodecUtils.encrypt(data_bytes, is_file=True)
     _write_bytes_atomic(Path(file_name), encrypted_bytes)
+
 
 def load_secrets(file_name):
     secret_file = Path(file_name)
@@ -60,11 +62,11 @@ def load_secrets(file_name):
 def _write_bytes_atomic(target_file, payload):
     target_file.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
-        mode="wb",
-        dir=target_file.parent,
-        delete=False,
-        prefix=f"{target_file.name}.",
-        suffix=".tmp",
+            mode="wb",
+            dir=target_file.parent,
+            delete=False,
+            prefix=f"{target_file.name}.",
+            suffix=".tmp",
     ) as temp_file:
         temp_file.write(payload)
         temp_file_path = Path(temp_file.name)

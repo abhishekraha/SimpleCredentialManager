@@ -1,6 +1,6 @@
-from dev.abhishekraha.secretmanager.core import SimpleCredentialManager
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import DEFAULT_EXPORT_CSV, SECRET_FILE, \
     SECRET_MANAGER_META_DATA
+from dev.abhishekraha.secretmanager.core import SimpleCredentialManager
 from dev.abhishekraha.secretmanager.utils.Utils import clear_screen
 
 

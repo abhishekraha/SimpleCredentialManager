@@ -9,12 +9,12 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import FAILED_AUT
 
 class SecretManagerMetaDataManager:
     def __init__(
-        self,
-        salt=None,
-        password_verifier=None,
-        version=3,
-        failed_auth_attempts=0,
-        lockout_until=None,
+            self,
+            salt=None,
+            password_verifier=None,
+            version=3,
+            failed_auth_attempts=0,
+            lockout_until=None,
     ):
         self._salt = salt or os.urandom(16)
         self._password_verifier = password_verifier
