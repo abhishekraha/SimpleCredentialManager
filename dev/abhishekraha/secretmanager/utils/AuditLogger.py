@@ -17,6 +17,7 @@ SENSITIVE_DETAIL_FRAGMENTS = (
 
 
 def log_event(event_type, log_file=AUDIT_LOG_FILE, **details):
+    log_file = Path(log_file)
     event_record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": event_type,
@@ -29,7 +30,11 @@ def log_event(event_type, log_file=AUDIT_LOG_FILE, **details):
         file_handle.write(json.dumps(event_record, sort_keys=True) + "\n")
 
     if is_new_file and os.name != "nt":
-        os.chmod(log_file, 0o600)
+        try:
+            os.chmod(log_file, 0o600)
+        except FileNotFoundError:
+            # Tests may mock writes without creating a real file on disk.
+            pass
 
 
 def audit_action(action_name, client="unknown", status="success", log_file=AUDIT_LOG_FILE, **details):

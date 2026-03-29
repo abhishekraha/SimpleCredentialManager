@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import mock_open, patch
@@ -10,18 +11,28 @@ class AuditLoggerTests(unittest.TestCase):
     def test_audit_action_writes_client_status_and_sanitized_details(self):
         audit_log_file = Path("audit.log")
         mocked_open = mock_open()
+        original_exists = Path.exists
 
-        with patch.object(Path, "exists", return_value=False):
+        def fake_exists(path_obj):
+            if path_obj == audit_log_file:
+                return False
+            return original_exists(path_obj)
+
+        with patch.object(Path, "exists", autospec=True, side_effect=fake_exists):
             with patch("builtins.open", mocked_open):
-                audit_action(
-                    "secret_copied_to_clipboard",
-                    client="ui",
-                    status="success",
-                    log_file=audit_log_file,
-                    secret_name="github",
-                    target_path=Path("export.csv"),
-                    password="super-secret",
-                )
+                with patch("os.chmod") as mocked_chmod:
+                    audit_action(
+                        "secret_copied_to_clipboard",
+                        client="ui",
+                        status="success",
+                        log_file=audit_log_file,
+                        secret_name="github",
+                        target_path=Path("export.csv"),
+                        password="super-secret",
+                    )
+
+        if os.name != "nt":
+            mocked_chmod.assert_called_once_with(audit_log_file, 0o600)
 
         write_call = mocked_open().write.call_args
         self.assertIsNotNone(write_call)
