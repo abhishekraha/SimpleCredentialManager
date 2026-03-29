@@ -1,11 +1,9 @@
 import csv
-import os
 import time
 from datetime import datetime
 from pathlib import Path
 
 from dev.abhishekraha.secretmanager.codec import SerDeUtils, CodecUtils
-from dev.abhishekraha.secretmanager.codec.CodecUtils import derive_key
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_DIR, APP_CONFIG_DIR, SECRET_FILE, \
     SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV
 from dev.abhishekraha.secretmanager.model.Secret import create_secret, Secret
@@ -13,7 +11,8 @@ from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import Se
 from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen
 
 SECRETS = {}
-METADATA_MANAGER: SecretManagerMetaDataManager
+METADATA_MANAGER = None
+MAX_AUTH_ATTEMPTS = 3
 
 
 def initialize():
@@ -21,28 +20,34 @@ def initialize():
     APP_HOME_DIR.mkdir(parents=True, exist_ok=True)
     APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-
-
-
     if not SECRET_MANAGER_META_DATA.exists():
         _initialize_metadata()
     METADATA_MANAGER = SerDeUtils.load(SECRET_MANAGER_META_DATA)
+    SECRETS = {}
+    CodecUtils.clear_derived_key()
 
 def _initialize_metadata(re_attempt=False):
     metadata = SecretManagerMetaDataManager()
-    if not re_attempt:
-        print(f"{HEADER}\n\tInitial Setup")
-    master_password = secure_input("Enter master password : ")
+    print(f"{HEADER}\n\tInitial Setup")
 
-    metadata.set_master_password(master_password)
+    while True:
+        master_password = secure_input("Enter master password : ")
+        if not master_password:
+            print("Master password cannot be empty.")
+            continue
 
-    validate_password = secure_input("Re-enter master password : ")
+        validate_password = secure_input("Re-enter master password : ")
+        if master_password != validate_password:
+            print("Password mismatch. Please try again.")
+            continue
 
-    if not metadata.validate_master_password(validate_password):
-        print("Password mismatch")
-        _initialize_metadata(True)
-
-    SerDeUtils.dump(metadata, SECRET_MANAGER_META_DATA)
+        metadata.set_master_password(master_password)
+        SerDeUtils.dump(metadata, SECRET_MANAGER_META_DATA)
+        if not SECRET_FILE.exists():
+            CodecUtils.derive_key(master_password, metadata.get_salt())
+            SerDeUtils.dump_secrets({}, SECRET_FILE)
+            CodecUtils.clear_derived_key()
+        break
 
     print("\n\n\tSetup completed.")
     print("[ NOTE ] Keep the master password handy, else all the secrets would be lost!!")
@@ -52,25 +57,25 @@ def _initialize_metadata(re_attempt=False):
 
 
 def authenticate(re_attempt=False):
-    if not re_attempt:
-        print(HEADER)
     global METADATA_MANAGER
-    failsafe()
-    user_password = secure_input("Enter master password: ")
-
-    derive_key(user_password, METADATA_MANAGER.get_salt())
-
-    try:
+    print(HEADER)
+    for attempt in range(1, MAX_AUTH_ATTEMPTS + 1):
+        user_password = secure_input("Enter master password: ")
         if METADATA_MANAGER.validate_master_password(user_password):
-            METADATA_MANAGER.reset_incorrect_password_attempts()
-
+            try:
+                load_secrets()
+            except ValueError as exc:
+                print(f"Vault file could not be opened: {exc}")
+                CodecUtils.clear_derived_key()
+                return False
             return True
-        else:
-            raise
-    except Exception as e:
-        METADATA_MANAGER.increment_incorrect_password_attempts()
-        print("master password is invalid")
-        return authenticate(True)
+
+        remaining_attempts = MAX_AUTH_ATTEMPTS - attempt
+        if remaining_attempts:
+            print(f"Master password is invalid. {remaining_attempts} attempt(s) remaining.")
+
+    print("Maximum authentication attempts reached. The vault was not modified.")
+    return False
 
 def load_secrets():
     global SECRETS
@@ -79,22 +84,11 @@ def load_secrets():
     SECRETS = SerDeUtils.load_secrets(SECRET_FILE)
 
 
-def failsafe():
-    global METADATA_MANAGER
-
-    if METADATA_MANAGER.get_incorrect_password_attempts() >= METADATA_MANAGER.get_max_incorrect_password_attempts():
-        print("Maximum incorrect password attempts reached. Wiping all stored passwords for security.")
-        os.remove(SECRET_FILE)
-        os.remove(SECRET_MANAGER_META_DATA)
-        exit(1)
-    elif METADATA_MANAGER.get_incorrect_password_attempts() >= METADATA_MANAGER.get_incorrect_password_threshold():
-        print("Warning: Multiple incorrect password attempts detected.")
-        print(
-            f"Stored passwords will be wiped in {METADATA_MANAGER.get_max_incorrect_password_attempts() - METADATA_MANAGER.get_incorrect_password_attempts()} attempts.")
-
-
 def add_secret():
-    secret_name = input("Enter a name for the secret: ")
+    secret_name = input("Enter a name for the secret: ").strip()
+    if not secret_name:
+        print("Secret name cannot be empty.")
+        return
     if secret_name in SECRETS.keys():
         print("A secret with this name already exists. Please choose a different name or update option.")
         return
@@ -119,8 +113,7 @@ def update_secret():
     if secret:
         print("Leave a field blank to keep it unchanged.")
         username = input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username()
-        password = secure_input("Enter new password (leave blank to keep unchanged): ") or CodecUtils.decrypt(
-            secret.get_password())
+        password = secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password()
         url = input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url()
         comments = input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments()
 
@@ -228,7 +221,7 @@ def import_secrets():
 
             changes_made = False
             for row in reader:
-                name = row['name']
+                name = (row['name'] or "").strip()
                 if not name:
                     print("Skipping row with empty name")
                     continue
@@ -246,9 +239,17 @@ def import_secrets():
                         name = new_name
                     # if overwrite, fall through
 
-                # Create Secret instance and populate fields
-                sec = Secret(name, row['username'], row['password'], row['url'], row['comments'])
-                # Optionally parse created_at/updated_at if needed, else leave defaults
+                created_at = _parse_datetime(row.get('created_at'))
+                updated_at = _parse_datetime(row.get('updated_at'))
+                sec = Secret(
+                    name,
+                    row.get('username', ''),
+                    row.get('password', ''),
+                    row.get('url', ''),
+                    row.get('comments', ''),
+                    create_date=created_at or datetime.now(),
+                    update_date=updated_at,
+                )
                 SECRETS[name] = sec
                 changes_made = True
 
@@ -285,3 +286,9 @@ def get_menu():
         '7': import_secrets,
         '8': exit
     }
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
