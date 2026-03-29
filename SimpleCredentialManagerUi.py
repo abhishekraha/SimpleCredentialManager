@@ -1,0 +1,638 @@
+import tkinter as tk
+import webbrowser
+from pathlib import Path
+from secrets import randbelow
+from tkinter import filedialog, messagebox, ttk
+
+from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
+    APP_COPYRIGHT,
+    APP_NAME,
+    APP_REPOSITORY_URL,
+    APP_VERSION,
+    BUG_REPORT_URL,
+    DEFAULT_EXPORT_CSV,
+)
+from dev.abhishekraha.secretmanager.core.SecretManagerService import (
+    SecretManagerService,
+)
+from dev.abhishekraha.secretmanager.utils.Utils import copy_to_clipboard
+
+
+class SecretEditorDialog(tk.Toplevel):
+    def __init__(self, master, title, secret=None):
+        super().__init__(master)
+        self.result = None
+        self.title(title)
+        self.transient(master)
+        self.resizable(False, False)
+        self.columnconfigure(1, weight=1)
+
+        self.name_var = tk.StringVar(value=secret.get_name() if secret else "")
+        self.username_var = tk.StringVar(value=secret.get_username() if secret else "")
+        self.password_var = tk.StringVar(value=secret.get_password() if secret else "")
+        self.url_var = tk.StringVar(value=secret.get_url() if secret else "")
+        self.show_password_var = tk.BooleanVar(value=False)
+
+        ttk.Label(self, text="Name").grid(row=0, column=0, padx=16, pady=(16, 8), sticky="w")
+        ttk.Entry(self, textvariable=self.name_var, width=44).grid(
+            row=0, column=1, padx=(0, 16), pady=(16, 8), sticky="ew"
+        )
+
+        ttk.Label(self, text="Username").grid(row=1, column=0, padx=16, pady=8, sticky="w")
+        ttk.Entry(self, textvariable=self.username_var, width=44).grid(
+            row=1, column=1, padx=(0, 16), pady=8, sticky="ew"
+        )
+
+        ttk.Label(self, text="Password").grid(row=2, column=0, padx=16, pady=8, sticky="w")
+        self.password_entry = ttk.Entry(self, textvariable=self.password_var, width=44, show="*")
+        self.password_entry.grid(row=2, column=1, padx=(0, 16), pady=8, sticky="ew")
+        ttk.Checkbutton(
+            self,
+            text="Show password",
+            variable=self.show_password_var,
+            command=self._toggle_password_visibility,
+        ).grid(row=3, column=1, padx=(0, 16), pady=(0, 8), sticky="w")
+
+        ttk.Label(self, text="URL").grid(row=4, column=0, padx=16, pady=8, sticky="w")
+        ttk.Entry(self, textvariable=self.url_var, width=44).grid(
+            row=4, column=1, padx=(0, 16), pady=8, sticky="ew"
+        )
+
+        ttk.Label(self, text="Comments").grid(row=5, column=0, padx=16, pady=8, sticky="nw")
+        self.comments_text = tk.Text(self, width=44, height=6, wrap="word")
+        self.comments_text.grid(row=5, column=1, padx=(0, 16), pady=8, sticky="ew")
+        if secret:
+            self.comments_text.insert("1.0", secret.get_comments())
+
+        action_frame = ttk.Frame(self)
+        action_frame.grid(row=6, column=0, columnspan=2, padx=16, pady=(8, 16), sticky="e")
+        ttk.Button(action_frame, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(action_frame, text="Save", command=self._save).pack(side="right", padx=(0, 8))
+
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.grab_set()
+        self.password_entry.focus_set()
+
+    def _toggle_password_visibility(self):
+        self.password_entry.configure(show="" if self.show_password_var.get() else "*")
+
+    def _save(self):
+        self.result = {
+            "name": self.name_var.get().strip(),
+            "username": self.username_var.get(),
+            "password": self.password_var.get(),
+            "url": self.url_var.get(),
+            "comments": self.comments_text.get("1.0", "end").rstrip("\n"),
+        }
+        self.destroy()
+
+
+class SimpleCredentialManagerUi(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.service = SecretManagerService(client_name="ui")
+        self.status_var = tk.StringVar(value="Starting up...")
+        self.search_var = tk.StringVar()
+        self.show_password_var = tk.BooleanVar(value=False)
+        self.lockout_timer_id = None
+        self.current_secret_name = None
+        self.current_secret_password = ""
+        self.current_password_mask = ""
+        self.toast_popup = None
+
+        self.title(f"{APP_NAME} {APP_VERSION}")
+        self.geometry("1160x760")
+        self.minsize(980, 640)
+        self.protocol("WM_DELETE_WINDOW", self._handle_close)
+
+        self._configure_style()
+
+        self.content = ttk.Frame(self, padding=20)
+        self.content.pack(fill="both", expand=True)
+
+        self.footer = ttk.Frame(self, padding=(16, 8))
+        self.footer.pack(fill="x", side="bottom")
+
+        self.status_bar = ttk.Label(self.footer, textvariable=self.status_var, anchor="w")
+        self.status_bar.pack(side="left")
+
+        footer_right = ttk.Frame(self.footer)
+        footer_right.pack(side="right")
+        ttk.Label(
+            footer_right,
+            text=f"{APP_VERSION} | {APP_COPYRIGHT}",
+            style="Footer.TLabel",
+        ).pack(side="left")
+        ttk.Label(footer_right, text=" | ", style="Footer.TLabel").pack(side="left")
+        self.repo_label = ttk.Label(
+            footer_right,
+            text="GitHub",
+            style="FooterLink.TLabel",
+            cursor="hand2",
+        )
+        self.repo_label.pack(side="left")
+        self.repo_label.bind("<Button-1>", lambda _event: webbrowser.open_new_tab(APP_REPOSITORY_URL))
+
+        self.after(50, self._bootstrap)
+
+    def _configure_style(self):
+        style = ttk.Style(self)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        style.configure("Title.TLabel", font=("Segoe UI", 22, "bold"))
+        style.configure("Subtitle.TLabel", font=("Segoe UI", 11))
+        style.configure("Section.TLabel", font=("Segoe UI", 11, "bold"))
+        style.configure("Footer.TLabel", font=("Segoe UI", 9))
+        style.configure("FooterLink.TLabel", font=("Segoe UI", 9, "underline"))
+
+    def _bootstrap(self):
+        try:
+            initialized = self.service.initialize()
+        except (FileNotFoundError, ValueError) as exc:
+            self._show_error_screen("Startup failed", str(exc), self.service.get_startup_recovery_instructions(exc))
+            return
+
+        if initialized:
+            self._show_login_screen()
+            return
+        self._show_setup_screen()
+
+    def _clear_content(self):
+        if self.lockout_timer_id is not None:
+            self.after_cancel(self.lockout_timer_id)
+            self.lockout_timer_id = None
+        for child in self.content.winfo_children():
+            child.destroy()
+
+    def _show_setup_screen(self):
+        self._clear_content()
+        self.status_var.set("")
+
+        ttk.Label(
+            self.content,
+            text=f"{APP_NAME} {APP_VERSION}",
+            style="Title.TLabel",
+        ).pack(anchor="w", pady=(0, 20))
+
+        card = ttk.Frame(self.content, padding=20)
+        card.pack(anchor="center", expand=True)
+
+        ttk.Label(card, text="Create master password", style="Section.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 12)
+        )
+        ttk.Label(card, text="Master password").grid(row=1, column=0, sticky="w", pady=8)
+        password_entry = ttk.Entry(card, show="*", width=36)
+        password_entry.grid(row=1, column=1, sticky="ew", pady=8)
+
+        ttk.Label(card, text="Confirm password").grid(row=2, column=0, sticky="w", pady=8)
+        confirm_entry = ttk.Entry(card, show="*", width=36)
+        confirm_entry.grid(row=2, column=1, sticky="ew", pady=8)
+
+        def submit_setup():
+            try:
+                self.service.setup_master_password(password_entry.get(), confirm_entry.get())
+                success, message = self.service.authenticate(password_entry.get())
+            except Exception as exc:
+                messagebox.showerror("Setup failed", str(exc), parent=self)
+                return
+            if not success:
+                messagebox.showerror("Setup failed", message, parent=self)
+                return
+            self.status_var.set("Vault created successfully.")
+            self._show_vault_screen()
+
+        ttk.Button(card, text="Create vault", command=submit_setup).grid(
+            row=3, column=0, columnspan=2, sticky="ew", pady=(16, 0)
+        )
+        password_entry.focus_set()
+
+    def _show_login_screen(self):
+        self._clear_content()
+        self.status_var.set("")
+
+        ttk.Label(
+            self.content,
+            text=f"{APP_NAME} {APP_VERSION}",
+            style="Title.TLabel",
+        ).pack(anchor="w", pady=(0, 20))
+
+        card = ttk.Frame(self.content, padding=20)
+        card.pack(anchor="center", expand=True)
+
+        ttk.Label(card, text="Unlock vault", style="Section.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 12)
+        )
+        ttk.Label(card, text="Master password").grid(row=1, column=0, sticky="w", pady=8)
+        password_entry = ttk.Entry(card, show="*", width=36)
+        password_entry.grid(row=1, column=1, sticky="ew", pady=8)
+
+        helper_var = tk.StringVar(value="")
+        helper_label = ttk.Label(card, textvariable=helper_var, wraplength=420, foreground="#8a2b2b")
+        helper_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+        unlock_button = ttk.Button(card, text="Unlock")
+        unlock_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+        def submit_login():
+            success, message = self.service.authenticate(password_entry.get())
+            if success:
+                self.status_var.set("Vault unlocked.")
+                self._show_vault_screen()
+                return
+            helper_var.set(message)
+            password_entry.delete(0, "end")
+            self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+
+        unlock_button.configure(command=submit_login)
+        password_entry.bind("<Return>", lambda _event: submit_login())
+        password_entry.focus_set()
+        self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+
+    def _refresh_lockout_state(self, password_entry, unlock_button, helper_var):
+        status = self.service.get_lockout_status()
+        if status["is_locked_out"]:
+            helper_var.set(f"Temporary lockout active. Try again in {status['remaining_seconds']} second(s).")
+            password_entry.configure(state="disabled")
+            unlock_button.configure(state="disabled")
+            self.lockout_timer_id = self.after(
+                1000, lambda: self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+            )
+            return
+        password_entry.configure(state="normal")
+        unlock_button.configure(state="normal")
+        if not helper_var.get():
+            helper_var.set("Use your master password to unlock the local vault.")
+
+    def _show_vault_screen(self):
+        self._clear_content()
+        self.status_var.set("")
+        self.search_var = tk.StringVar()
+        self.show_password_var = tk.BooleanVar(value=False)
+        self.search_var.trace_add("write", lambda *_args: self._refresh_secret_tree())
+
+        header = ttk.Frame(self.content)
+        header.pack(fill="x", pady=(0, 16))
+        ttk.Label(header, text=f"{APP_NAME} {APP_VERSION}", style="Title.TLabel").pack(side="left")
+        ttk.Button(header, text="Lock", command=self._lock_and_return_to_login).pack(side="right")
+
+        toolbar = ttk.Frame(self.content)
+        toolbar.pack(fill="x", pady=(0, 16))
+        ttk.Label(toolbar, text="Search").pack(side="left")
+        ttk.Entry(toolbar, textvariable=self.search_var, width=28).pack(side="left", padx=(8, 16))
+        for label, command in [
+            ("Add", self._add_secret),
+            ("Edit", self._edit_selected_secret),
+            ("Delete", self._delete_selected_secret),
+            ("Import CSV", self._import_secrets),
+            ("Export CSV", self._export_secrets),
+        ]:
+            ttk.Button(toolbar, text=label, command=command).pack(side="left", padx=(0, 8))
+
+        paned = ttk.Panedwindow(self.content, orient="horizontal")
+        paned.pack(fill="both", expand=True)
+
+        list_frame = ttk.Frame(paned, padding=12)
+        detail_frame = ttk.Frame(paned, padding=12)
+        paned.add(list_frame, weight=1)
+        paned.add(detail_frame, weight=2)
+
+        ttk.Label(list_frame, text="Stored secrets", style="Section.TLabel").pack(anchor="w", pady=(0, 8))
+        self.secret_tree = ttk.Treeview(
+            list_frame,
+            columns=("username", "url"),
+            show="tree headings",
+            selectmode="browse",
+        )
+        self.secret_tree.heading("#0", text="Name")
+        self.secret_tree.heading("username", text="Username")
+        self.secret_tree.heading("url", text="URL")
+        self.secret_tree.column("#0", width=220, stretch=True)
+        self.secret_tree.column("username", width=140, stretch=True)
+        self.secret_tree.column("url", width=180, stretch=True)
+        self.secret_tree.pack(fill="both", expand=True)
+        self.secret_tree.bind("<<TreeviewSelect>>", self._handle_secret_selection)
+        self.secret_tree.bind("<Double-1>", lambda _event: self._edit_selected_secret())
+
+        self.name_var = tk.StringVar(value="-")
+        self.username_var = tk.StringVar(value="-")
+        self.password_var = tk.StringVar(value="-")
+        self.url_var = tk.StringVar(value="-")
+        self.created_var = tk.StringVar(value="-")
+        self.updated_var = tk.StringVar(value="-")
+        self.comments_text = tk.Text(detail_frame, width=48, height=12, wrap="word", state="disabled")
+
+        ttk.Label(detail_frame, text="Credential details", style="Section.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
+        )
+        self._add_detail_row(detail_frame, 1, "Name", self.name_var)
+        self._add_detail_row(detail_frame, 2, "Username", self.username_var)
+        ttk.Label(detail_frame, text="Password").grid(row=3, column=0, sticky="w", pady=8)
+        self.password_entry = ttk.Entry(
+            detail_frame,
+            textvariable=self.password_var,
+            state="readonly",
+            cursor="hand2",
+        )
+        self.password_entry.grid(row=3, column=1, sticky="ew", pady=8)
+        self.password_entry.bind("<Button-1>", self._handle_password_click)
+        ttk.Checkbutton(
+            detail_frame,
+            text="Show password",
+            variable=self.show_password_var,
+            command=self._refresh_password_display,
+        ).grid(row=4, column=1, sticky="w", pady=(0, 8))
+        self._add_detail_row(detail_frame, 5, "URL", self.url_var)
+        self._add_detail_row(detail_frame, 6, "Created", self.created_var)
+        self._add_detail_row(detail_frame, 7, "Updated", self.updated_var)
+        ttk.Label(detail_frame, text="Comments").grid(row=8, column=0, sticky="nw", pady=8)
+        self.comments_text.grid(row=8, column=1, sticky="nsew", pady=8)
+        detail_frame.columnconfigure(1, weight=1)
+        detail_frame.rowconfigure(8, weight=1)
+
+        self._refresh_secret_tree()
+
+    def _add_detail_row(self, parent, row_index, label_text, variable):
+        ttk.Label(parent, text=label_text).grid(row=row_index, column=0, sticky="w", pady=8)
+        ttk.Entry(parent, textvariable=variable, state="readonly").grid(
+            row=row_index, column=1, sticky="ew", pady=8
+        )
+
+    def _refresh_secret_tree(self):
+        selected = self.current_secret_name
+        for item_id in self.secret_tree.get_children():
+            self.secret_tree.delete(item_id)
+        records = self.service.get_secret_records(self.search_var.get())
+        for secret in records:
+            self.secret_tree.insert("", "end", iid=secret.get_name(), text=secret.get_name(), values=(
+                secret.get_username(),
+                secret.get_url(),
+            ))
+        if selected and self.secret_tree.exists(selected):
+            self.secret_tree.selection_set(selected)
+            self.secret_tree.focus(selected)
+        elif records:
+            first = records[0].get_name()
+            self.secret_tree.selection_set(first)
+            self.secret_tree.focus(first)
+        else:
+            self.current_secret_name = None
+            self.current_secret_password = ""
+            self.current_password_mask = ""
+            self._clear_detail_panel()
+        self._render_selected_secret(log_access=False)
+
+    def _handle_secret_selection(self, _event):
+        self._render_selected_secret(log_access=True)
+
+    def _render_selected_secret(self, log_access):
+        selection = self.secret_tree.selection()
+        if not selection:
+            self.current_secret_name = None
+            self.current_secret_password = ""
+            self.current_password_mask = ""
+            self._clear_detail_panel()
+            return
+        secret = self.service.get_secret(selection[0])
+        if secret is None:
+            self._clear_detail_panel()
+            return
+        if log_access:
+            self.service.record_secret_view(secret.get_name())
+        self.current_secret_name = secret.get_name()
+        self.current_secret_password = secret.get_password()
+        self.current_password_mask = self._generate_password_mask()
+        self.name_var.set(secret.get_name())
+        self.username_var.set(secret.get_username() or "-")
+        self.url_var.set(secret.get_url() or "-")
+        self.created_var.set(self._format_datetime(secret.get_create_date()))
+        self.updated_var.set(self._format_datetime(secret.get_update_date()))
+        self._set_comments(secret.get_comments() or "")
+        self._refresh_password_display()
+
+    def _refresh_password_display(self):
+        if not self.current_secret_name:
+            self.password_var.set("-")
+            return
+        if self.show_password_var.get():
+            self.password_var.set(self.current_secret_password or "")
+            return
+        if not self.current_password_mask:
+            self.current_password_mask = self._generate_password_mask()
+        self.password_var.set(self.current_password_mask)
+
+    def _clear_detail_panel(self):
+        for variable in [self.name_var, self.username_var, self.password_var, self.url_var, self.created_var, self.updated_var]:
+            variable.set("-")
+        self.current_password_mask = ""
+        self._set_comments("")
+
+    def _set_comments(self, value):
+        self.comments_text.configure(state="normal")
+        self.comments_text.delete("1.0", "end")
+        self.comments_text.insert("1.0", value)
+        self.comments_text.configure(state="disabled")
+
+    def _add_secret(self):
+        dialog = SecretEditorDialog(self, "Add secret")
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+        try:
+            self.service.add_secret(**dialog.result)
+        except Exception as exc:
+            messagebox.showerror("Add secret", str(exc), parent=self)
+            return
+        self.status_var.set(f"Added '{dialog.result['name']}'.")
+        self.current_secret_name = dialog.result["name"]
+        self._refresh_secret_tree()
+
+    def _edit_selected_secret(self):
+        secret = self._require_selected_secret()
+        if not secret:
+            return
+        dialog = SecretEditorDialog(self, "Edit secret", secret=secret)
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+        try:
+            self.service.update_secret(
+                secret.get_name(),
+                dialog.result["name"],
+                dialog.result["username"],
+                dialog.result["password"],
+                dialog.result["url"],
+                dialog.result["comments"],
+            )
+        except Exception as exc:
+            messagebox.showerror("Edit secret", str(exc), parent=self)
+            return
+        self.status_var.set(f"Updated '{dialog.result['name']}'.")
+        self.current_secret_name = dialog.result["name"]
+        self._refresh_secret_tree()
+
+    def _delete_selected_secret(self):
+        secret = self._require_selected_secret()
+        if not secret:
+            return
+        if not messagebox.askyesno(
+            "Delete secret",
+            f"Delete '{secret.get_name()}' from the local vault?",
+            parent=self,
+        ):
+            return
+        self.service.delete_secret(secret.get_name())
+        self.status_var.set(f"Deleted '{secret.get_name()}'.")
+        self.current_secret_name = None
+        self._refresh_secret_tree()
+
+    def _copy_selected_password(self):
+        secret = self._require_selected_secret()
+        if not secret:
+            return
+        if not self._copy_text_to_clipboard(secret.get_password()):
+            messagebox.showerror(
+                "Clipboard unavailable",
+                "Clipboard copy is not available on this system.",
+                parent=self,
+            )
+            return
+        self.service.record_secret_copy(secret.get_name())
+        self.status_var.set(f"Copied password for '{secret.get_name()}' to the clipboard.")
+        self._show_transient_popup(f"Password for '{secret.get_name()}' copied to clipboard.")
+
+    def _handle_password_click(self, _event):
+        if self.current_secret_name and self.current_secret_password:
+            self._copy_selected_password()
+        return "break"
+
+    def _import_secrets(self):
+        source = filedialog.askopenfilename(
+            title="Import secrets from CSV",
+            initialdir=str(DEFAULT_EXPORT_CSV.parent),
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not source:
+            return
+        choice = messagebox.askyesnocancel(
+            "Import duplicates",
+            "Click Yes to overwrite duplicate names, No to skip duplicates, or Cancel to abort.",
+            parent=self,
+        )
+        if choice is None:
+            return
+        strategy = "overwrite" if choice else "skip"
+        try:
+            summary = self.service.import_secrets(source, conflict_strategy=strategy)
+        except Exception as exc:
+            messagebox.showerror("Import failed", str(exc), parent=self)
+            return
+        self.status_var.set(
+            f"Import complete. Added {summary['imported']}, overwritten {summary['overwritten']}, skipped {summary['skipped']}."
+        )
+        self._refresh_secret_tree()
+
+    def _export_secrets(self):
+        target = filedialog.asksaveasfilename(
+            title="Export secrets to CSV",
+            initialdir=str(DEFAULT_EXPORT_CSV.parent),
+            initialfile=DEFAULT_EXPORT_CSV.name,
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not target:
+            return
+        if not messagebox.askyesno(
+            "Plaintext export warning",
+            "This will write plaintext secrets to disk. Continue?",
+            parent=self,
+        ):
+            return
+        try:
+            self.service.export_secrets(Path(target), overwrite=True)
+        except Exception as exc:
+            messagebox.showerror("Export failed", str(exc), parent=self)
+            return
+        self.status_var.set(f"Exported secrets to {target}.")
+
+    def _lock_and_return_to_login(self):
+        self.service.lock_vault()
+        self.current_secret_name = None
+        self.current_secret_password = ""
+        self._show_login_screen()
+
+    def _require_selected_secret(self):
+        if not self.current_secret_name:
+            messagebox.showinfo("Select a secret", "Choose a secret first.", parent=self)
+            return None
+        return self.service.get_secret(self.current_secret_name)
+
+    def _show_error_screen(self, title, message, details):
+        self._clear_content()
+        self.status_var.set("")
+        ttk.Label(self.content, text=title, style="Title.TLabel").pack(anchor="w")
+        ttk.Label(self.content, text=message, style="Subtitle.TLabel", wraplength=900).pack(anchor="w", pady=(8, 16))
+        if details:
+            detail_box = tk.Text(self.content, height=12, wrap="word")
+            detail_box.pack(fill="both", expand=True)
+            detail_box.insert("1.0", "\n".join(f"{index}. {line}" for index, line in enumerate(details, start=1)))
+            detail_box.configure(state="disabled")
+        ttk.Label(
+            self.content,
+            text=f"If this looks wrong, raise it with the developer at {BUG_REPORT_URL}.",
+            wraplength=900,
+        ).pack(anchor="w", pady=(16, 0))
+        ttk.Button(self.content, text="Quit", command=self.destroy).pack(anchor="e", pady=(16, 0))
+
+    def _format_datetime(self, value):
+        if not value:
+            return "-"
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _show_transient_popup(self, message):
+        if self.toast_popup is not None and self.toast_popup.winfo_exists():
+            self.toast_popup.destroy()
+
+        popup = tk.Toplevel(self)
+        popup.overrideredirect(True)
+        try:
+            popup.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+
+        label = ttk.Label(popup, text=message, padding=(14, 10))
+        label.pack()
+
+        popup.update_idletasks()
+        x_position = self.winfo_rootx() + self.winfo_width() - popup.winfo_width() - 24
+        y_position = self.winfo_rooty() + 24
+        popup.geometry(f"+{x_position}+{y_position}")
+        popup.after(1600, popup.destroy)
+        self.toast_popup = popup
+
+    def _copy_text_to_clipboard(self, value):
+        clipboard_text = "" if value is None else str(value)
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(clipboard_text)
+            return True
+        except tk.TclError:
+            return copy_to_clipboard(clipboard_text)
+
+    def _generate_password_mask(self):
+        if not self.current_secret_password:
+            return ""
+        return "*" * (12 + randbelow(9))
+
+    def _handle_close(self):
+        self.service.lock_vault()
+        self.destroy()
+
+
+def main():
+    app = SimpleCredentialManagerUi()
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()

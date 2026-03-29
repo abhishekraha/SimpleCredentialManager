@@ -5,8 +5,15 @@ A minimal, local, file-backed credential manager written in Python.
 It stores encrypted secrets (name, username, password, URL, comments) on the local machine and protects them with a
 master password.
 
-Current Release
+Change Log
 ---------------
+
+`v2.0.0`
+
+- adds a cross-platform desktop UI for Windows, macOS, and Linux
+- keeps the existing vault format, encryption flow, and local storage model unchanged
+- runs both the desktop UI and the CLI through the same backend service
+- supports only `v4` vault metadata and key-derivation
 
 `v1.1.1`
 
@@ -44,8 +51,8 @@ Features & Functionality
 ------------------------
 
 1) First initialization
-    - On the first run the CLI performs an interactive setup and prompts you to create and confirm a master password.
-      This prepares the application for secure use.
+    - On the first run the desktop app or CLI performs an interactive setup and prompts you to create and confirm a
+      master password. This prepares the application for secure use.
 
 2) Master password (critical)
     - The master password is the single, critical key for the vault. All stored secrets are encrypted and require this
@@ -54,7 +61,8 @@ Features & Functionality
 3) Authentication backoff & audit logging
     - The application tracks failed master-password attempts.
     - Repeated failures trigger a temporary lockout with increasing backoff instead of deleting the vault.
-    - Authentication and lockout events are written to a local audit log.
+    - Authentication, vault, and credential-management actions are written to a local audit log.
+    - The audit log records action metadata, but not plaintext secret values or passwords.
 
 4) Local storage
     - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
@@ -68,7 +76,12 @@ Features & Functionality
       a bug at
       `https://github.com/abhishekraha/SimpleCredentialManager`.
 
-6) CLI menu options
+6) Desktop UI
+    - `v2.0.0` adds a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
+    - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, and lock.
+    - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
+
+7) CLI menu options
     - Add Secret: interactively add a new secret.
     - View Secret: view details for a stored secret (requires master password).
     - Update Secret: modify an existing secret.
@@ -86,6 +99,8 @@ Prerequisites:
 
 - Python 3.8+ (Python 3.11+ tested by project artefacts)
 - pip
+- Tkinter support for the desktop UI
+  - On Linux this may require installing a distro package such as `python3-tk`.
 
 Install dependencies:
 
@@ -99,14 +114,25 @@ requirements automatically.
 Usage
 -----
 
-1. Start the CLI directly:
+1. Start the desktop UI directly:
+
+   python SimpleCredentialManagerUi.py
+
+2. Or use the OS-specific UI launcher scripts:
+
+- Windows: run `SimpleCredentialManagerUi.bat`
+- POSIX: run `./SimpleCredentialManagerUi.sh`
+
+3. The CLI remains available if you prefer a terminal workflow:
 
    python SimpleCredentialManagerCli.py
 
-2. Or use the OS-specific launcher scripts:
+4. CLI launchers are also still available:
 
 - Windows: run `SimpleCredentialManagerCli.bat` (this will open the CLI in a new Command Prompt window)
 - POSIX: run `./SimpleCredentialManagerCli.sh`
+
+The desktop UI and CLI both talk to the same backend service and the same local vault files.
 
 On first run:
 
