@@ -1,19 +1,20 @@
 import csv
-import os
+from copy import deepcopy
 import time
 from datetime import datetime
 from pathlib import Path
 
 from dev.abhishekraha.secretmanager.codec import SerDeUtils, CodecUtils
-from dev.abhishekraha.secretmanager.codec.CodecUtils import derive_key
+from dev.abhishekraha.secretmanager.codec.CodecUtils import CURRENT_KEY_DERIVATION_VERSION
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_DIR, APP_CONFIG_DIR, SECRET_FILE, \
-    SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV
+    SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV, BUG_REPORT_URL
 from dev.abhishekraha.secretmanager.model.Secret import create_secret, Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
-from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen
+from dev.abhishekraha.secretmanager.utils.AuditLogger import log_event
+from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen, copy_to_clipboard
 
 SECRETS = {}
-METADATA_MANAGER: SecretManagerMetaDataManager
+METADATA_MANAGER = None
 
 
 def initialize():
@@ -21,33 +22,36 @@ def initialize():
     APP_HOME_DIR.mkdir(parents=True, exist_ok=True)
     APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    is_app_data_exists = SECRET_FILE.exists()
-    is_app_meta_data_exists = SECRET_MANAGER_META_DATA.exists()
-
-    if not is_app_data_exists:
-        SerDeUtils.dump({}, SECRET_FILE)
-    SECRETS = SerDeUtils.load(SECRET_FILE)
-
-    if not is_app_meta_data_exists:
+    if not SECRET_MANAGER_META_DATA.exists():
         _initialize_metadata()
     METADATA_MANAGER = SerDeUtils.load(SECRET_MANAGER_META_DATA)
+    SECRETS = {}
+    CodecUtils.clear_derived_key()
 
 
 def _initialize_metadata(re_attempt=False):
     metadata = SecretManagerMetaDataManager()
-    if not re_attempt:
-        print(f"{HEADER}\n\tInitial Setup")
-    master_password = secure_input("Enter master password : ")
+    print(f"{HEADER}\n\tInitial Setup")
 
-    metadata.set_master_password(master_password)
+    while True:
+        master_password = secure_input("Enter master password : ")
+        if not master_password:
+            print("Master password cannot be empty.")
+            continue
 
-    validate_password = secure_input("Re-enter master password : ")
+        validate_password = secure_input("Re-enter master password : ")
+        if master_password != validate_password:
+            print("Password mismatch. Please try again.")
+            continue
 
-    if not metadata.validate_master_password(validate_password):
-        print("Password mismatch")
-        _initialize_metadata(True)
-
-    SerDeUtils.dump(metadata, SECRET_MANAGER_META_DATA)
+        metadata.set_master_password(master_password)
+        SerDeUtils.dump(metadata, SECRET_MANAGER_META_DATA)
+        if not SECRET_FILE.exists():
+            CodecUtils.derive_key(master_password, metadata.get_salt())
+            SerDeUtils.dump_secrets({}, SECRET_FILE)
+            CodecUtils.clear_derived_key()
+        log_event("initial_setup_completed")
+        break
 
     print("\n\n\tSetup completed.")
     print("[ NOTE ] Keep the master password handy, else all the secrets would be lost!!")
@@ -57,48 +61,175 @@ def _initialize_metadata(re_attempt=False):
 
 
 def authenticate(re_attempt=False):
-    if not re_attempt:
-        print(HEADER)
     global METADATA_MANAGER
-    failsafe()
-    user_password = secure_input("Enter master password: ")
+    print(HEADER)
+    if METADATA_MANAGER.clear_expired_lockout():
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
 
-    derive_key(user_password, METADATA_MANAGER.get_salt())
+    if METADATA_MANAGER.is_locked_out():
+        lockout_seconds = METADATA_MANAGER.get_lockout_remaining_seconds()
+        print(f"Too many failed attempts. Try again in {lockout_seconds} second(s).")
+        log_event(
+            "authentication_blocked_by_lockout",
+            failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+            lockout_seconds=lockout_seconds,
+        )
+        return False
+
+    while True:
+        user_password = secure_input("Enter master password: ")
+        if METADATA_MANAGER.validate_master_password(user_password):
+            had_failed_attempts = METADATA_MANAGER.get_failed_auth_attempts() > 0
+            if had_failed_attempts:
+                METADATA_MANAGER.reset_failed_auth_attempts()
+            try:
+                load_secrets()
+            except ValueError as exc:
+                print(f"Vault file could not be opened: {exc}")
+                CodecUtils.clear_derived_key()
+                log_event("vault_unlock_failed", reason="vault_file_unreadable")
+                return False
+            try:
+                migrated_from_version = _migrate_deprecated_vault_format(user_password)
+            except ValueError as exc:
+                print(exc)
+                CodecUtils.clear_derived_key()
+                return False
+            if had_failed_attempts and migrated_from_version is None:
+                SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+            log_event(
+                "authentication_succeeded",
+                prior_failures=had_failed_attempts,
+                migrated_from_version=migrated_from_version,
+            )
+            return True
+
+        lockout_seconds = METADATA_MANAGER.record_failed_auth_attempt()
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+        if lockout_seconds:
+            print(
+                f"Master password is invalid. Vault locked for {lockout_seconds} second(s)."
+            )
+            log_event(
+                "authentication_lockout_started",
+                failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+                lockout_seconds=lockout_seconds,
+            )
+            return False
+
+        remaining_attempts = METADATA_MANAGER.get_remaining_attempts_before_lockout()
+        print(
+            f"Master password is invalid. {remaining_attempts} attempt(s) remaining before temporary lockout."
+        )
+        log_event(
+            "authentication_failed",
+            failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+            attempts_before_lockout=remaining_attempts,
+        )
+
+
+def load_secrets():
+    global SECRETS
+    if not SECRET_FILE.exists():
+        SerDeUtils.dump_secrets({}, SECRET_FILE)
+    SECRETS = SerDeUtils.load_secrets(SECRET_FILE)
+
+
+def _migrate_deprecated_vault_format(master_password):
+    global METADATA_MANAGER, SECRETS
+    if not METADATA_MANAGER.uses_deprecated_key_derivation():
+        return None
+
+    deprecated_version = METADATA_MANAGER.get_version()
+    _print_legacy_bug_report_warning(deprecated_version)
+    print(
+        f"Detected deprecated vault format v{deprecated_version}. "
+        f"Migrating to v{CURRENT_KEY_DERIVATION_VERSION}..."
+    )
+    log_event(
+        "vault_migration_started",
+        from_version=deprecated_version,
+        to_version=CURRENT_KEY_DERIVATION_VERSION,
+    )
+
+    original_metadata_manager = deepcopy(METADATA_MANAGER)
+    original_metadata_bytes = SECRET_MANAGER_META_DATA.read_bytes() if SECRET_MANAGER_META_DATA.exists() else None
+    original_vault_bytes = SECRET_FILE.read_bytes() if SECRET_FILE.exists() else None
 
     try:
-        if METADATA_MANAGER.validate_master_password(user_password):
-            METADATA_MANAGER.reset_incorrect_password_attempts()
-            return True
-        else:
-            raise
-    except Exception as e:
-        METADATA_MANAGER.increment_incorrect_password_attempts()
-        print("master password is invalid")
-        return authenticate(True)
+        METADATA_MANAGER.set_version(CURRENT_KEY_DERIVATION_VERSION)
+        METADATA_MANAGER.set_master_password(master_password)
+        CodecUtils.derive_key(
+            master_password,
+            METADATA_MANAGER.get_salt(),
+            version=METADATA_MANAGER.get_version(),
+        )
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+    except Exception as exc:
+        _restore_pre_migration_state(
+            original_metadata_manager,
+            original_metadata_bytes,
+            original_vault_bytes,
+            master_password,
+        )
+        log_event(
+            "vault_migration_failed",
+            from_version=deprecated_version,
+            to_version=CURRENT_KEY_DERIVATION_VERSION,
+            error=str(exc),
+        )
+        raise ValueError(
+            "Automatic migration from the deprecated vault format failed. Original files were restored. "
+            f"Please report this to the developer as a bug at {BUG_REPORT_URL}."
+        ) from exc
+
+    print("Vault migration completed successfully.")
+    log_event(
+        "vault_migration_succeeded",
+        from_version=deprecated_version,
+        to_version=CURRENT_KEY_DERIVATION_VERSION,
+    )
+    return deprecated_version
 
 
-def failsafe():
+def _print_legacy_bug_report_warning(deprecated_version):
+    print(
+        f"[ WARNING ] Deprecated legacy vault format v{deprecated_version} detected. "
+        "This compatibility path is deprecated and is being used only for automatic migration."
+    )
+    print(
+        f"[ WARNING ] If you continue to see legacy-method warnings after migration, "
+        f"please raise a bug with the developer at {BUG_REPORT_URL}."
+    )
+
+
+def _restore_pre_migration_state(original_metadata_manager, original_metadata_bytes, original_vault_bytes, master_password):
     global METADATA_MANAGER
+    if original_metadata_bytes is not None:
+        SerDeUtils.dump_bytes(original_metadata_bytes, SECRET_MANAGER_META_DATA)
+    if original_vault_bytes is not None:
+        SerDeUtils.dump_bytes(original_vault_bytes, SECRET_FILE)
 
-    if METADATA_MANAGER.get_incorrect_password_attempts() >= METADATA_MANAGER.get_max_incorrect_password_attempts():
-        print("Maximum incorrect password attempts reached. Wiping all stored passwords for security.")
-        os.remove(SECRET_FILE)
-        os.remove(SECRET_MANAGER_META_DATA)
-        exit(1)
-    elif METADATA_MANAGER.get_incorrect_password_attempts() >= METADATA_MANAGER.get_incorrect_password_threshold():
-        print("Warning: Multiple incorrect password attempts detected.")
-        print(
-            f"Stored passwords will be wiped in {METADATA_MANAGER.get_max_incorrect_password_attempts() - METADATA_MANAGER.get_incorrect_password_attempts()} attempts.")
+    METADATA_MANAGER = original_metadata_manager
+    CodecUtils.derive_key(
+        master_password,
+        METADATA_MANAGER.get_salt(),
+        version=METADATA_MANAGER.get_version(),
+    )
 
 
 def add_secret():
-    secret_name = input("Enter a name for the secret: ")
+    secret_name = input("Enter a name for the secret: ").strip()
+    if not secret_name:
+        print("Secret name cannot be empty.")
+        return
     if secret_name in SECRETS.keys():
         print("A secret with this name already exists. Please choose a different name or update option.")
         return
     secret = create_secret(secret_name)
     SECRETS[secret_name] = secret
-    SerDeUtils.dump(SECRETS, SECRET_FILE)
+    SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
     print("Secret added successfully.")
 
 
@@ -107,6 +238,16 @@ def view_secret():
     secret = SECRETS.get(secret_name)
     if secret:
         print(secret.peak())
+        user_choice = input(
+            "Press Enter to continue or type 'c' to copy the password to the clipboard: "
+        ).strip().lower()
+        if user_choice == 'c':
+            if copy_to_clipboard(secret.get_password()):
+                print("Password copied to clipboard.")
+            else:
+                print("Clipboard copy is not available on this system.")
+            input("Press Enter to continue...")
+        return True
     else:
         print("Secret not found.")
 
@@ -117,8 +258,7 @@ def update_secret():
     if secret:
         print("Leave a field blank to keep it unchanged.")
         username = input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username()
-        password = secure_input("Enter new password (leave blank to keep unchanged): ") or CodecUtils.decrypt_password(
-            secret.get_password())
+        password = secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password()
         url = input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url()
         comments = input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments()
 
@@ -128,7 +268,7 @@ def update_secret():
         secret.set_comments(comments)
         secret.set_update_date(datetime.now())
 
-        SerDeUtils.dump(SECRETS, SECRET_FILE)
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
         print("Secret updated successfully.")
     else:
         print("Secret not found.")
@@ -138,7 +278,7 @@ def delete_secret():
     secret_name = input("Enter the name of the secret to delete: ")
     if secret_name in SECRETS:
         del SECRETS[secret_name]
-        SerDeUtils.dump(SECRETS, SECRET_FILE)
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
         print("Secret deleted successfully.")
     else:
         print("Secret not found.")
@@ -226,7 +366,7 @@ def import_secrets():
 
             changes_made = False
             for row in reader:
-                name = row['name']
+                name = (row['name'] or "").strip()
                 if not name:
                     print("Skipping row with empty name")
                     continue
@@ -244,14 +384,22 @@ def import_secrets():
                         name = new_name
                     # if overwrite, fall through
 
-                # Create Secret instance and populate fields
-                sec = Secret(name, row['username'], row['password'], row['url'], row['comments'])
-                # Optionally parse created_at/updated_at if needed, else leave defaults
+                created_at = _parse_datetime(row.get('created_at'))
+                updated_at = _parse_datetime(row.get('updated_at'))
+                sec = Secret(
+                    name,
+                    row.get('username', ''),
+                    row.get('password', ''),
+                    row.get('url', ''),
+                    row.get('comments', ''),
+                    create_date=created_at or datetime.now(),
+                    update_date=updated_at,
+                )
                 SECRETS[name] = sec
                 changes_made = True
 
             if changes_made:
-                SerDeUtils.dump(SECRETS, SECRET_FILE)
+                SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
                 print("Import complete and data persisted.")
             else:
                 print("No changes made from import.")
@@ -283,3 +431,9 @@ def get_menu():
         '7': import_secrets,
         '8': exit
     }
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
