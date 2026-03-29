@@ -10,9 +10,8 @@ Current Release
 
 `v1.1.1`
 
-- deprecates legacy `v2` and `v3` vault logic
-- uses `v4` for new vaults by default
-- automatically migrates deprecated vaults to `v4` after successful login
+- removes legacy `v2` and `v3` vault logic
+- supports only `v4` vault metadata and key-derivation
 
 Important Disclaimer
 --------------------
@@ -61,13 +60,12 @@ Features & Functionality
     - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
       default.
 
-5) Vault format & migration
+5) Vault format
     - New vaults use the current `v4` key-derivation and metadata format.
-    - Older `v2` and `v3` vault formats are deprecated.
-    - If a deprecated vault is unlocked successfully, the application will automatically migrate it to `v4`.
-    - If automatic migration fails, the application restores the original files and aborts instead of leaving the vault
-      in a partial state.
-    - If you still see legacy-format warnings after migration, report it as a bug at
+    - Legacy `v2` and `v3` vault logic has been removed from the codebase.
+    - This release supports only `v4` vault metadata and key derivation.
+    - If you still encounter a `v2` or `v3` vault on a machine that was expected to be migrated already, report it as
+      a bug at
       `https://github.com/abhishekraha/SimpleCredentialManager`.
 
 6) CLI menu options
@@ -119,8 +117,9 @@ On first run:
 
 If you already have an older vault:
 
-- A successful login can trigger an automatic one-time migration to the current `v4` format.
-- Keep a backup of your vault files before first running a newer version of the application.
+- This release no longer supports `v2` or `v3` vault logic.
+- If a machine was expected to be migrated already but still shows an older vault format, report it as a bug at
+  `https://github.com/abhishekraha/SimpleCredentialManager`.
 
 Container (optional Docker environment)
 --------------------------------------
