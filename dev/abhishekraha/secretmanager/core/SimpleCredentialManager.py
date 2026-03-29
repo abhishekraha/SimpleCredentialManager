@@ -8,11 +8,11 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_D
     SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV
 from dev.abhishekraha.secretmanager.model.Secret import create_secret, Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
+from dev.abhishekraha.secretmanager.utils.AuditLogger import log_event
 from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen
 
 SECRETS = {}
 METADATA_MANAGER = None
-MAX_AUTH_ATTEMPTS = 3
 
 
 def initialize():
@@ -47,6 +47,7 @@ def _initialize_metadata(re_attempt=False):
             CodecUtils.derive_key(master_password, metadata.get_salt())
             SerDeUtils.dump_secrets({}, SECRET_FILE)
             CodecUtils.clear_derived_key()
+        log_event("initial_setup_completed")
         break
 
     print("\n\n\tSetup completed.")
@@ -59,23 +60,58 @@ def _initialize_metadata(re_attempt=False):
 def authenticate(re_attempt=False):
     global METADATA_MANAGER
     print(HEADER)
-    for attempt in range(1, MAX_AUTH_ATTEMPTS + 1):
+    if METADATA_MANAGER.clear_expired_lockout():
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+
+    if METADATA_MANAGER.is_locked_out():
+        lockout_seconds = METADATA_MANAGER.get_lockout_remaining_seconds()
+        print(f"Too many failed attempts. Try again in {lockout_seconds} second(s).")
+        log_event(
+            "authentication_blocked_by_lockout",
+            failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+            lockout_seconds=lockout_seconds,
+        )
+        return False
+
+    while True:
         user_password = secure_input("Enter master password: ")
         if METADATA_MANAGER.validate_master_password(user_password):
+            had_failed_attempts = METADATA_MANAGER.get_failed_auth_attempts() > 0
+            if had_failed_attempts:
+                METADATA_MANAGER.reset_failed_auth_attempts()
+                SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
             try:
                 load_secrets()
             except ValueError as exc:
                 print(f"Vault file could not be opened: {exc}")
                 CodecUtils.clear_derived_key()
+                log_event("vault_unlock_failed", reason="vault_file_unreadable")
                 return False
+            log_event("authentication_succeeded", prior_failures=had_failed_attempts)
             return True
 
-        remaining_attempts = MAX_AUTH_ATTEMPTS - attempt
-        if remaining_attempts:
-            print(f"Master password is invalid. {remaining_attempts} attempt(s) remaining.")
+        lockout_seconds = METADATA_MANAGER.record_failed_auth_attempt()
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+        if lockout_seconds:
+            print(
+                f"Master password is invalid. Vault locked for {lockout_seconds} second(s)."
+            )
+            log_event(
+                "authentication_lockout_started",
+                failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+                lockout_seconds=lockout_seconds,
+            )
+            return False
 
-    print("Maximum authentication attempts reached. The vault was not modified.")
-    return False
+        remaining_attempts = METADATA_MANAGER.get_remaining_attempts_before_lockout()
+        print(
+            f"Master password is invalid. {remaining_attempts} attempt(s) remaining before temporary lockout."
+        )
+        log_event(
+            "authentication_failed",
+            failed_attempts=METADATA_MANAGER.get_failed_auth_attempts(),
+            attempts_before_lockout=remaining_attempts,
+        )
 
 def load_secrets():
     global SECRETS
