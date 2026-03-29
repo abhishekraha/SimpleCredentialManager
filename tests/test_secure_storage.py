@@ -3,8 +3,10 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from dev.abhishekraha.secretmanager.codec import CodecUtils, SerDeUtils
+from dev.abhishekraha.secretmanager.core import SimpleCredentialManager
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import FAILED_AUTH_LOCKOUT_BASE_SECONDS
 from dev.abhishekraha.secretmanager.model.Secret import Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
@@ -26,6 +28,47 @@ class SecureStorageTests(unittest.TestCase):
 
             self.assertTrue(loaded_metadata.validate_master_password("correct horse battery staple"))
             self.assertFalse(loaded_metadata.validate_master_password("wrong password"))
+
+    def test_legacy_v3_metadata_still_validates(self):
+        metadata = SecretManagerMetaDataManager(version=3)
+        metadata.set_master_password("correct horse battery staple")
+
+        self.assertTrue(metadata.validate_master_password("correct horse battery staple"))
+        self.assertFalse(metadata.validate_master_password("wrong password"))
+
+    def test_legacy_v3_vault_is_migrated_to_current_version(self):
+        with TemporaryDirectory() as temp_dir:
+            metadata_file = Path(temp_dir) / "metadata.json"
+            vault_file = Path(temp_dir) / "vault.bin"
+
+            legacy_metadata = SecretManagerMetaDataManager(version=3)
+            legacy_metadata.set_master_password("correct horse battery staple")
+            CodecUtils.derive_key("correct horse battery staple", legacy_metadata.get_salt(), version=3)
+
+            secrets = {
+                "email": Secret("email", "alice", "s3cr3t!", "https://example.com", "primary mailbox")
+            }
+            SerDeUtils.dump(legacy_metadata, metadata_file)
+            SerDeUtils.dump_secrets(secrets, vault_file)
+
+            loaded_metadata = SerDeUtils.load(metadata_file)
+            self.assertEqual(3, loaded_metadata.get_version())
+            self.assertTrue(loaded_metadata.validate_master_password("correct horse battery staple"))
+
+            with patch("dev.abhishekraha.secretmanager.core.SimpleCredentialManager.SECRET_MANAGER_META_DATA", metadata_file), \
+                    patch("dev.abhishekraha.secretmanager.core.SimpleCredentialManager.SECRET_FILE", vault_file):
+                SimpleCredentialManager.METADATA_MANAGER = loaded_metadata
+                SimpleCredentialManager.SECRETS = SerDeUtils.load_secrets(vault_file)
+                migrated_from_version = SimpleCredentialManager._migrate_deprecated_vault_format(
+                    "correct horse battery staple"
+                )
+
+            self.assertEqual(3, migrated_from_version)
+            migrated_metadata = SerDeUtils.load(metadata_file)
+            self.assertEqual(migrated_metadata.get_version(), CodecUtils.CURRENT_KEY_DERIVATION_VERSION)
+            self.assertTrue(migrated_metadata.validate_master_password("correct horse battery staple"))
+            migrated_secrets = SerDeUtils.load_secrets(vault_file)
+            self.assertEqual("s3cr3t!", migrated_secrets["email"].get_password())
 
     def test_vault_file_is_encrypted_and_round_trips(self):
         with TemporaryDirectory() as temp_dir:

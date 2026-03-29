@@ -52,7 +52,16 @@ Features & Functionality
     - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
       default.
 
-5) CLI menu options
+5) Vault format & migration
+    - New vaults use the current `v4` key-derivation and metadata format.
+    - Older `v2` and `v3` vault formats are deprecated.
+    - If a deprecated vault is unlocked successfully, the application will automatically migrate it to `v4`.
+    - If automatic migration fails, the application restores the original files and aborts instead of leaving the vault
+      in a partial state.
+    - If you still see legacy-format warnings after migration, report it as a bug at
+      `https://github.com/abhishekraha/SimpleCredentialManager`.
+
+6) CLI menu options
     - Add Secret: interactively add a new secret.
     - View Secret: view details for a stored secret (requires master password).
     - Update Secret: modify an existing secret.
@@ -98,6 +107,11 @@ On first run:
   your local machine.
 - Keep the master password safe. If you lose it, the application cannot recover the secrets (they are encrypted with a
   key derived from the password).
+
+If you already have an older vault:
+
+- A successful login can trigger an automatic one-time migration to the current `v4` format.
+- Keep a backup of your vault files before first running a newer version of the application.
 
 Container (optional Docker environment)
 --------------------------------------

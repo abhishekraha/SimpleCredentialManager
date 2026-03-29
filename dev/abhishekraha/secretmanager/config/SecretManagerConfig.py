@@ -11,6 +11,7 @@ DEFAULT_EXPORT_CSV = Path.joinpath(APP_HOME_DIR, 'secrets_export.csv')
 FAILED_AUTH_LOCKOUT_THRESHOLD = 3
 FAILED_AUTH_LOCKOUT_BASE_SECONDS = 30
 FAILED_AUTH_LOCKOUT_MAX_SECONDS = 900
+BUG_REPORT_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
 
 HEADER = """
 ======================================================    

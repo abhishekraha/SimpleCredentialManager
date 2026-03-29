@@ -12,7 +12,7 @@ def dump(data, file_name, override=False):
     if override and Path(file_name).exists():
         raise FileExistsError(f"File {file_name} already exists")
     payload = json.dumps(data.to_dict(), indent=2).encode("utf-8")
-    _write_bytes_atomic(Path(file_name), payload)
+    dump_bytes(payload, file_name, override=override)
 
 
 def load(file_name):
@@ -36,7 +36,7 @@ def dump_secrets(data, file_name, override=False):
     }
     data_bytes = json.dumps(serialized_secrets, indent=2).encode("utf-8")
     encrypted_bytes = CodecUtils.encrypt(data_bytes, is_file=True)
-    _write_bytes_atomic(Path(file_name), encrypted_bytes)
+    dump_bytes(encrypted_bytes, file_name, override=override)
 
 
 def load_secrets(file_name):
@@ -57,6 +57,13 @@ def load_secrets(file_name):
         name: Secret.from_dict(secret_payload)
         for name, secret_payload in decoded_payload.items()
     }
+
+
+def dump_bytes(payload, file_name, override=False):
+    target_file = Path(file_name)
+    if override and target_file.exists():
+        raise FileExistsError(f"File {file_name} already exists")
+    _write_bytes_atomic(target_file, payload)
 
 
 def _write_bytes_atomic(target_file, payload):

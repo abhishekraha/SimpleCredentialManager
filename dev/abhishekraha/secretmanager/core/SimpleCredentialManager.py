@@ -1,11 +1,13 @@
 import csv
+from copy import deepcopy
 import time
 from datetime import datetime
 from pathlib import Path
 
 from dev.abhishekraha.secretmanager.codec import SerDeUtils, CodecUtils
+from dev.abhishekraha.secretmanager.codec.CodecUtils import CURRENT_KEY_DERIVATION_VERSION
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_DIR, APP_CONFIG_DIR, SECRET_FILE, \
-    SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV
+    SECRET_MANAGER_META_DATA, HEADER, DEFAULT_EXPORT_CSV, BUG_REPORT_URL
 from dev.abhishekraha.secretmanager.model.Secret import create_secret, Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
 from dev.abhishekraha.secretmanager.utils.AuditLogger import log_event
@@ -80,7 +82,6 @@ def authenticate(re_attempt=False):
             had_failed_attempts = METADATA_MANAGER.get_failed_auth_attempts() > 0
             if had_failed_attempts:
                 METADATA_MANAGER.reset_failed_auth_attempts()
-                SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
             try:
                 load_secrets()
             except ValueError as exc:
@@ -88,7 +89,19 @@ def authenticate(re_attempt=False):
                 CodecUtils.clear_derived_key()
                 log_event("vault_unlock_failed", reason="vault_file_unreadable")
                 return False
-            log_event("authentication_succeeded", prior_failures=had_failed_attempts)
+            try:
+                migrated_from_version = _migrate_deprecated_vault_format(user_password)
+            except ValueError as exc:
+                print(exc)
+                CodecUtils.clear_derived_key()
+                return False
+            if had_failed_attempts and migrated_from_version is None:
+                SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+            log_event(
+                "authentication_succeeded",
+                prior_failures=had_failed_attempts,
+                migrated_from_version=migrated_from_version,
+            )
             return True
 
         lockout_seconds = METADATA_MANAGER.record_failed_auth_attempt()
@@ -120,6 +133,90 @@ def load_secrets():
     if not SECRET_FILE.exists():
         SerDeUtils.dump_secrets({}, SECRET_FILE)
     SECRETS = SerDeUtils.load_secrets(SECRET_FILE)
+
+
+def _migrate_deprecated_vault_format(master_password):
+    global METADATA_MANAGER, SECRETS
+    if not METADATA_MANAGER.uses_deprecated_key_derivation():
+        return None
+
+    deprecated_version = METADATA_MANAGER.get_version()
+    _print_legacy_bug_report_warning(deprecated_version)
+    print(
+        f"Detected deprecated vault format v{deprecated_version}. "
+        f"Migrating to v{CURRENT_KEY_DERIVATION_VERSION}..."
+    )
+    log_event(
+        "vault_migration_started",
+        from_version=deprecated_version,
+        to_version=CURRENT_KEY_DERIVATION_VERSION,
+    )
+
+    original_metadata_manager = deepcopy(METADATA_MANAGER)
+    original_metadata_bytes = SECRET_MANAGER_META_DATA.read_bytes() if SECRET_MANAGER_META_DATA.exists() else None
+    original_vault_bytes = SECRET_FILE.read_bytes() if SECRET_FILE.exists() else None
+
+    try:
+        METADATA_MANAGER.set_version(CURRENT_KEY_DERIVATION_VERSION)
+        METADATA_MANAGER.set_master_password(master_password)
+        CodecUtils.derive_key(
+            master_password,
+            METADATA_MANAGER.get_salt(),
+            version=METADATA_MANAGER.get_version(),
+        )
+        SerDeUtils.dump_secrets(SECRETS, SECRET_FILE)
+        SerDeUtils.dump(METADATA_MANAGER, SECRET_MANAGER_META_DATA)
+    except Exception as exc:
+        _restore_pre_migration_state(
+            original_metadata_manager,
+            original_metadata_bytes,
+            original_vault_bytes,
+            master_password,
+        )
+        log_event(
+            "vault_migration_failed",
+            from_version=deprecated_version,
+            to_version=CURRENT_KEY_DERIVATION_VERSION,
+            error=str(exc),
+        )
+        raise ValueError(
+            "Automatic migration from the deprecated vault format failed. Original files were restored. "
+            f"Please report this to the developer as a bug at {BUG_REPORT_URL}."
+        ) from exc
+
+    print("Vault migration completed successfully.")
+    log_event(
+        "vault_migration_succeeded",
+        from_version=deprecated_version,
+        to_version=CURRENT_KEY_DERIVATION_VERSION,
+    )
+    return deprecated_version
+
+
+def _print_legacy_bug_report_warning(deprecated_version):
+    print(
+        f"[ WARNING ] Deprecated legacy vault format v{deprecated_version} detected. "
+        "This compatibility path is deprecated and is being used only for automatic migration."
+    )
+    print(
+        f"[ WARNING ] If you continue to see legacy-method warnings after migration, "
+        f"please raise a bug with the developer at {BUG_REPORT_URL}."
+    )
+
+
+def _restore_pre_migration_state(original_metadata_manager, original_metadata_bytes, original_vault_bytes, master_password):
+    global METADATA_MANAGER
+    if original_metadata_bytes is not None:
+        SerDeUtils.dump_bytes(original_metadata_bytes, SECRET_MANAGER_META_DATA)
+    if original_vault_bytes is not None:
+        SerDeUtils.dump_bytes(original_vault_bytes, SECRET_FILE)
+
+    METADATA_MANAGER = original_metadata_manager
+    CodecUtils.derive_key(
+        master_password,
+        METADATA_MANAGER.get_salt(),
+        version=METADATA_MANAGER.get_version(),
+    )
 
 
 def add_secret():

@@ -2,7 +2,8 @@ import os
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
 
-from dev.abhishekraha.secretmanager.codec.CodecUtils import build_password_verifier, verify_password
+from dev.abhishekraha.secretmanager.codec.CodecUtils import build_password_verifier, verify_password, \
+    CURRENT_KEY_DERIVATION_VERSION
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import FAILED_AUTH_LOCKOUT_BASE_SECONDS, \
     FAILED_AUTH_LOCKOUT_MAX_SECONDS, FAILED_AUTH_LOCKOUT_THRESHOLD
 
@@ -12,7 +13,7 @@ class SecretManagerMetaDataManager:
             self,
             salt=None,
             password_verifier=None,
-            version=3,
+            version=CURRENT_KEY_DERIVATION_VERSION,
             failed_auth_attempts=0,
             lockout_until=None,
     ):
@@ -26,12 +27,21 @@ class SecretManagerMetaDataManager:
         return self._salt
 
     def set_master_password(self, master_password):
-        self._password_verifier = build_password_verifier(master_password, self._salt)
+        self._password_verifier = build_password_verifier(master_password, self._salt, version=self._version)
 
     def validate_master_password(self, master_password):
         if self._password_verifier is None:
             raise ValueError("Master password verifier has not been initialized.")
-        return verify_password(master_password, self._salt, self._password_verifier)
+        return verify_password(master_password, self._salt, self._password_verifier, version=self._version)
+
+    def set_version(self, version):
+        self._version = version
+
+    def get_version(self):
+        return self._version
+
+    def uses_deprecated_key_derivation(self):
+        return self._version < CURRENT_KEY_DERIVATION_VERSION
 
     def get_failed_auth_attempts(self):
         return self._failed_auth_attempts
