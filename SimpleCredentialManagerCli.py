@@ -48,8 +48,9 @@ while True:
     func = SimpleCredentialManager.get_menu().get(user_choice)
 
     if func:
-        func()
-        input("Press Enter to continue...")
+        handled_continue_prompt = func()
+        if not handled_continue_prompt:
+            input("Press Enter to continue...")
         clear_screen()
     else:
         print("Invalid choice. Please try again.\n")

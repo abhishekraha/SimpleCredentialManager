@@ -9,7 +9,7 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import APP_HOME_D
 from dev.abhishekraha.secretmanager.model.Secret import create_secret, Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
 from dev.abhishekraha.secretmanager.utils.AuditLogger import log_event
-from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen
+from dev.abhishekraha.secretmanager.utils.Utils import secure_input, clear_screen, copy_to_clipboard
 
 SECRETS = {}
 METADATA_MANAGER = None
@@ -141,6 +141,16 @@ def view_secret():
     secret = SECRETS.get(secret_name)
     if secret:
         print(secret.peak())
+        user_choice = input(
+            "Press Enter to continue or type 'c' to copy the password to the clipboard: "
+        ).strip().lower()
+        if user_choice == 'c':
+            if copy_to_clipboard(secret.get_password()):
+                print("Password copied to clipboard.")
+            else:
+                print("Clipboard copy is not available on this system.")
+            input("Press Enter to continue...")
+        return True
     else:
         print("Secret not found.")
 
