@@ -102,7 +102,7 @@ class SecureStorageTests(unittest.TestCase):
         payload = (
             "name,username,password,url,comments\n"
             "github,alice,s3cr3t,https://github.com,primary\n"
-            "\n"
+            ",,,,\n"
             "email,bob,p4ss,https://example.com,backup\n"
         )
 

@@ -204,13 +204,13 @@ class SecretManagerService:
             self._audit("bulk_insert_failed", status="failed", reason="empty_input")
             raise ValueError("Bulk insert input is empty.")
 
-        reader = csv.DictReader(io.StringIO(payload))
         expected_headers = ["name", "username", "password", "url", "comments"]
-        if not reader.fieldnames:
+        rows = list(csv.reader(io.StringIO(payload)))
+        if not rows or not rows[0]:
             self._audit("bulk_insert_failed", status="failed", reason="missing_header")
             raise ValueError("Bulk insert input must include a header row.")
 
-        normalized_headers = [header.strip().lower() for header in reader.fieldnames]
+        normalized_headers = [header.strip().lower() for header in rows[0]]
         if normalized_headers != expected_headers:
             self._audit(
                 "bulk_insert_failed",
@@ -227,10 +227,21 @@ class SecretManagerService:
         skipped_blank_rows = 0
         validation_errors = []
 
-        for line_number, row in enumerate(reader, start=2):
+        for line_number, row in enumerate(rows[1:], start=2):
+            if not row or not any((value or "").strip() for value in row):
+                skipped_blank_rows += 1
+                continue
+
+            if len(row) > len(expected_headers):
+                validation_errors.append(
+                    f"Line {line_number}: expected {len(expected_headers)} columns but found {len(row)}."
+                )
+                continue
+
+            padded_row = row + [""] * (len(expected_headers) - len(row))
             normalized_row = {
                 normalized_headers[index]: value
-                for index, value in enumerate(row.values())
+                for index, value in enumerate(padded_row)
             }
             if not any((value or "").strip() for value in normalized_row.values()):
                 skipped_blank_rows += 1

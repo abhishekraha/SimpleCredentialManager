@@ -46,7 +46,8 @@ class CliBulkInsertTests(unittest.TestCase):
             "skipped_blank_rows": 0,
         }
 
-        cli._bulk_insert_secrets()
+        with patch("sys.stdout", new_callable=io.StringIO):
+            cli._bulk_insert_secrets()
 
         mocked_service.bulk_insert_secrets.assert_called_once_with(
             "name,username,password,url,comments\n"
