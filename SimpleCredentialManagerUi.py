@@ -3,6 +3,7 @@ import webbrowser
 from pathlib import Path
 from secrets import randbelow
 from tkinter import filedialog, messagebox, ttk
+from urllib.parse import urlparse
 
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_COPYRIGHT,
@@ -141,6 +142,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.lockout_timer_id = None
         self.current_secret_name = None
         self.current_secret_password = ""
+        self.current_secret_username = ""
         self.current_password_mask = ""
         self.toast_popup = None
 
@@ -370,7 +372,15 @@ class SimpleCredentialManagerUi(tk.Tk):
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
         )
         self._add_detail_row(detail_frame, 1, "Name", self.name_var)
-        self._add_detail_row(detail_frame, 2, "Username", self.username_var)
+        ttk.Label(detail_frame, text="Username").grid(row=2, column=0, sticky="w", pady=8)
+        self.username_entry = ttk.Entry(
+            detail_frame,
+            textvariable=self.username_var,
+            state="readonly",
+            cursor="hand2",
+        )
+        self.username_entry.grid(row=2, column=1, sticky="ew", pady=8)
+        self.username_entry.bind("<Button-1>", self._handle_username_click)
         ttk.Label(detail_frame, text="Password").grid(row=3, column=0, sticky="w", pady=8)
         self.password_entry = ttk.Entry(
             detail_frame,
@@ -386,7 +396,15 @@ class SimpleCredentialManagerUi(tk.Tk):
             variable=self.show_password_var,
             command=self._refresh_password_display,
         ).grid(row=4, column=1, sticky="w", pady=(0, 8))
-        self._add_detail_row(detail_frame, 5, "URL", self.url_var)
+        ttk.Label(detail_frame, text="URL").grid(row=5, column=0, sticky="w", pady=8)
+        self.url_entry = ttk.Entry(
+            detail_frame,
+            textvariable=self.url_var,
+            state="readonly",
+            cursor="hand2",
+        )
+        self.url_entry.grid(row=5, column=1, sticky="ew", pady=8)
+        self.url_entry.bind("<Button-1>", self._handle_url_click)
         self._add_detail_row(detail_frame, 6, "Created", self.created_var)
         self._add_detail_row(detail_frame, 7, "Updated", self.updated_var)
         ttk.Label(detail_frame, text="Comments").grid(row=8, column=0, sticky="nw", pady=8)
@@ -422,6 +440,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         else:
             self.current_secret_name = None
             self.current_secret_password = ""
+            self.current_secret_username = ""
             self.current_password_mask = ""
             self._clear_detail_panel()
         self._render_selected_secret(log_access=False)
@@ -434,6 +453,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         if not selection:
             self.current_secret_name = None
             self.current_secret_password = ""
+            self.current_secret_username = ""
             self.current_password_mask = ""
             self._clear_detail_panel()
             return
@@ -445,6 +465,7 @@ class SimpleCredentialManagerUi(tk.Tk):
             self.service.record_secret_view(secret.get_name())
         self.current_secret_name = secret.get_name()
         self.current_secret_password = secret.get_password()
+        self.current_secret_username = secret.get_username()
         self.current_password_mask = self._generate_password_mask()
         self.name_var.set(secret.get_name())
         self.username_var.set(secret.get_username() or "-")
@@ -468,6 +489,7 @@ class SimpleCredentialManagerUi(tk.Tk):
     def _clear_detail_panel(self):
         for variable in [self.name_var, self.username_var, self.password_var, self.url_var, self.created_var, self.updated_var]:
             variable.set("-")
+        self.current_secret_username = ""
         self.current_password_mask = ""
         self._set_comments("")
 
@@ -562,9 +584,47 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.status_var.set(f"Copied password for '{secret.get_name()}' to the clipboard.")
         self._show_transient_popup(f"Password for '{secret.get_name()}' copied to clipboard.")
 
+    def _copy_selected_username(self):
+        secret = self._require_selected_secret()
+        if not secret:
+            return
+        if not secret.get_username():
+            self.status_var.set(f"'{secret.get_name()}' does not have a username to copy.")
+            return
+        if not self._copy_text_to_clipboard(secret.get_username()):
+            messagebox.showerror(
+                "Clipboard unavailable",
+                "Clipboard copy is not available on this system.",
+                parent=self,
+            )
+            return
+        self.service.record_secret_copy(secret.get_name(), field_name="username")
+        self.status_var.set(f"Copied username for '{secret.get_name()}' to the clipboard.")
+        self._show_transient_popup(f"Username for '{secret.get_name()}' copied to clipboard.")
+
     def _handle_password_click(self, _event):
         if self.current_secret_name and self.current_secret_password:
             self._copy_selected_password()
+        return "break"
+
+    def _handle_username_click(self, _event):
+        if self.current_secret_name and self.current_secret_username:
+            self._copy_selected_username()
+        return "break"
+
+    def _handle_url_click(self, _event):
+        if not self.current_secret_name:
+            return "break"
+        secret = self._require_selected_secret()
+        if not secret or not secret.get_url():
+            return "break"
+        target_url = self._normalize_url(secret.get_url())
+        try:
+            webbrowser.open_new_tab(target_url)
+        except Exception as exc:
+            messagebox.showerror("Open URL", f"Could not open the URL: {exc}", parent=self)
+            return "break"
+        self.status_var.set(f"Opened URL for '{secret.get_name()}'.")
         return "break"
 
     def _import_secrets(self):
@@ -679,6 +739,15 @@ class SimpleCredentialManagerUi(tk.Tk):
             return True
         except tk.TclError:
             return copy_to_clipboard(clipboard_text)
+
+    def _normalize_url(self, value):
+        url = (value or "").strip()
+        if not url:
+            return ""
+        parsed = urlparse(url)
+        if parsed.scheme:
+            return url
+        return f"https://{url}"
 
     def _generate_password_mask(self):
         if not self.current_secret_password:

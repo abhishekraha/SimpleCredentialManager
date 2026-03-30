@@ -1,9 +1,9 @@
 from pathlib import Path
 
 APP_NAME = "Simple Credential Manager"
-APP_VERSION = "v2.0.1"
+APP_VERSION = "v2.0.2"
 APP_AUTHOR = "Abhishek Raha"
-APP_COPYRIGHT = f"© 2026 ${APP_AUTHOR}. All rights reserved."
+APP_COPYRIGHT = f"© 2026 {APP_AUTHOR}. All rights reserved."
 APP_REPOSITORY_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
 USER_HOME = Path.home()
 APP_HOME_DIR = Path.joinpath(USER_HOME, '.simpleCredentialManager')
@@ -21,6 +21,6 @@ BUG_REPORT_URL = "https://github.com/abhishekraha/SimpleCredentialManager/issues
 HEADER = f"""
 ======================================================    
             Simple Credentials Manager
-                                        ${APP_VERSION}
+                                        {APP_VERSION}
 ======================================================    
 """
