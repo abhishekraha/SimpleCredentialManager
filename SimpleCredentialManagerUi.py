@@ -1,4 +1,5 @@
 import tkinter as tk
+import time
 import webbrowser
 from pathlib import Path
 from secrets import randbelow
@@ -12,6 +13,7 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_VERSION,
     BUG_REPORT_URL,
     DEFAULT_EXPORT_CSV,
+    SESSION_IDLE_LOCK_SECONDS,
 )
 from dev.abhishekraha.secretmanager.core.SecretManagerService import (
     SecretManagerService,
@@ -140,6 +142,9 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.search_var = tk.StringVar()
         self.show_password_var = tk.BooleanVar(value=False)
         self.lockout_timer_id = None
+        self.idle_check_id = None
+        self.idle_monitoring_enabled = False
+        self.last_activity_timestamp = time.monotonic()
         self.current_secret_name = None
         self.current_secret_password = ""
         self.current_secret_username = ""
@@ -178,6 +183,10 @@ class SimpleCredentialManagerUi(tk.Tk):
         )
         self.repo_label.pack(side="left")
         self.repo_label.bind("<Button-1>", lambda _event: webbrowser.open_new_tab(APP_REPOSITORY_URL))
+        self.bind_all("<KeyPress>", self._record_user_activity, add="+")
+        self.bind_all("<ButtonPress>", self._record_user_activity, add="+")
+        self.bind_all("<MouseWheel>", self._record_user_activity, add="+")
+        self.bind_all("<Motion>", self._record_user_activity, add="+")
 
         self.after(50, self._bootstrap)
 
@@ -212,6 +221,7 @@ class SimpleCredentialManagerUi(tk.Tk):
 
     def _show_setup_screen(self):
         self._clear_content()
+        self._stop_idle_monitoring()
         self.status_var.set("")
 
         ttk.Label(
@@ -254,6 +264,7 @@ class SimpleCredentialManagerUi(tk.Tk):
 
     def _show_login_screen(self):
         self._clear_content()
+        self._stop_idle_monitoring()
         self.status_var.set("")
 
         ttk.Label(
@@ -412,6 +423,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         detail_frame.columnconfigure(1, weight=1)
         detail_frame.rowconfigure(8, weight=1)
 
+        self._start_idle_monitoring()
         self._refresh_secret_tree()
 
     def _add_detail_row(self, parent, row_index, label_text, variable):
@@ -677,9 +689,11 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.status_var.set(f"Exported secrets to {target}.")
 
     def _lock_and_return_to_login(self):
+        self._stop_idle_monitoring()
         self.service.lock_vault()
         self.current_secret_name = None
         self.current_secret_password = ""
+        self.current_secret_username = ""
         self._show_login_screen()
 
     def _require_selected_secret(self):
@@ -690,6 +704,7 @@ class SimpleCredentialManagerUi(tk.Tk):
 
     def _show_error_screen(self, title, message, details):
         self._clear_content()
+        self._stop_idle_monitoring()
         self.status_var.set("")
         ttk.Label(self.content, text=title, style="Title.TLabel").pack(anchor="w")
         ttk.Label(self.content, text=message, style="Subtitle.TLabel", wraplength=900).pack(anchor="w", pady=(8, 16))
@@ -740,6 +755,64 @@ class SimpleCredentialManagerUi(tk.Tk):
         except tk.TclError:
             return copy_to_clipboard(clipboard_text)
 
+    def _start_idle_monitoring(self):
+        self.idle_monitoring_enabled = True
+        self.last_activity_timestamp = time.monotonic()
+        self._schedule_idle_check()
+
+    def _stop_idle_monitoring(self):
+        self.idle_monitoring_enabled = False
+        if self.idle_check_id is not None:
+            self.after_cancel(self.idle_check_id)
+            self.idle_check_id = None
+
+    def _schedule_idle_check(self):
+        if self.idle_check_id is not None:
+            self.after_cancel(self.idle_check_id)
+        self.idle_check_id = self.after(1000, self._check_idle_timeout)
+
+    def _record_user_activity(self, _event=None):
+        if not self.idle_monitoring_enabled or not self.service.is_unlocked():
+            return
+        self.last_activity_timestamp = time.monotonic()
+
+    def _check_idle_timeout(self):
+        self.idle_check_id = None
+        if not self.idle_monitoring_enabled:
+            return
+        if not self.service.is_unlocked():
+            self._stop_idle_monitoring()
+            return
+        if time.monotonic() - self.last_activity_timestamp >= SESSION_IDLE_LOCK_SECONDS:
+            self._lock_due_to_inactivity()
+            return
+        self._schedule_idle_check()
+
+    def _lock_due_to_inactivity(self):
+        self._stop_idle_monitoring()
+        self._close_auxiliary_windows()
+        self.service.lock_vault()
+        self.current_secret_name = None
+        self.current_secret_password = ""
+        self.current_secret_username = ""
+        self.current_password_mask = ""
+        self._show_login_screen()
+        self.status_var.set("Vault locked after 1 minute of inactivity.")
+        messagebox.showinfo(
+            "Vault locked",
+            "The vault was locked after 1 minute of inactivity.",
+            parent=self,
+        )
+
+    def _close_auxiliary_windows(self):
+        for child in self.winfo_children():
+            if isinstance(child, tk.Toplevel):
+                try:
+                    child.destroy()
+                except tk.TclError:
+                    pass
+        self.toast_popup = None
+
     def _normalize_url(self, value):
         url = (value or "").strip()
         if not url:
@@ -755,6 +828,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         return "*" * (12 + randbelow(9))
 
     def _handle_close(self):
+        self._stop_idle_monitoring()
         self.service.lock_vault()
         self.destroy()
 

@@ -4,14 +4,18 @@ from pathlib import Path
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     DEFAULT_EXPORT_CSV,
     HEADER,
+    SESSION_IDLE_LOCK_SECONDS,
 )
 from dev.abhishekraha.secretmanager.core.SecretManagerService import (
     SecretManagerService,
 )
 from dev.abhishekraha.secretmanager.utils.Utils import (
+    IdleTimeoutError,
     clear_screen,
     copy_to_clipboard,
     secure_input,
+    timed_input,
+    timed_secure_input,
 )
 
 SERVICE = SecretManagerService(client_name="cli")
@@ -66,11 +70,11 @@ def _authenticate():
 def _add_secret():
     try:
         SERVICE.add_secret(
-            input("Enter a name for the secret: ").strip(),
-            input("Enter username: "),
-            secure_input("Enter password: "),
-            input("Enter URL (optional): "),
-            input("Enter comments (optional): "),
+            _session_input("Enter a name for the secret: ").strip(),
+            _session_input("Enter username: "),
+            _session_secure_input("Enter password: "),
+            _session_input("Enter URL (optional): "),
+            _session_input("Enter comments (optional): "),
         )
     except Exception as exc:
         print(exc)
@@ -86,7 +90,7 @@ def _bulk_insert_secrets():
 
     rows = []
     while True:
-        row = input("> ")
+        row = _session_input("> ")
         if not row:
             break
         rows.append(row)
@@ -111,14 +115,14 @@ def _bulk_insert_secrets():
 
 
 def _view_secret():
-    secret = SERVICE.get_secret(input("Enter the name of the secret to view: ").strip())
+    secret = SERVICE.get_secret(_session_input("Enter the name of the secret to view: ").strip())
     if not secret:
         print("Secret not found.")
         return
 
     SERVICE.record_secret_view(secret.get_name())
     print(secret.peak())
-    user_choice = input(
+    user_choice = _session_input(
         "Press Enter to continue or type 'c' to copy the password to the clipboard: "
     ).strip().lower()
     if user_choice == "c":
@@ -127,12 +131,12 @@ def _view_secret():
             print("Password copied to clipboard.")
         else:
             print("Clipboard copy is not available on this system.")
-        input("Press Enter to continue...")
+        _session_input("Press Enter to continue...")
     return True
 
 
 def _update_secret():
-    secret = SERVICE.get_secret(input("Enter the name of the secret to update: ").strip())
+    secret = SERVICE.get_secret(_session_input("Enter the name of the secret to update: ").strip())
     if not secret:
         print("Secret not found.")
         return
@@ -141,11 +145,11 @@ def _update_secret():
     try:
         SERVICE.update_secret(
             secret.get_name(),
-            input(f"Enter new name (current: {secret.get_name()}): ") or secret.get_name(),
-            input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username(),
-            secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password(),
-            input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url(),
-            input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments(),
+            _session_input(f"Enter new name (current: {secret.get_name()}): ") or secret.get_name(),
+            _session_input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username(),
+            _session_secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password(),
+            _session_input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url(),
+            _session_input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments(),
         )
     except Exception as exc:
         print(exc)
@@ -155,7 +159,7 @@ def _update_secret():
 
 def _delete_secret():
     try:
-        SERVICE.delete_secret(input("Enter the name of the secret to delete: ").strip())
+        SERVICE.delete_secret(_session_input("Enter the name of the secret to delete: ").strip())
     except Exception as exc:
         print(exc)
         return
@@ -175,16 +179,16 @@ def _list_secrets():
 
 def _export_secrets():
     print(f"Default export path: {DEFAULT_EXPORT_CSV}")
-    user_path = input("Press Enter to use default or enter an alternate path: ").strip()
+    user_path = _session_input("Press Enter to use default or enter an alternate path: ").strip()
     target = Path(user_path) if user_path else DEFAULT_EXPORT_CSV
 
     while target.exists():
         print(f"Target file '{target}' already exists.")
-        choice = input("(o)verwrite, enter (n)ew path, or (c)ancel? [o/n/c]: ").strip().lower() or "c"
+        choice = _session_input("(o)verwrite, enter (n)ew path, or (c)ancel? [o/n/c]: ").strip().lower() or "c"
         if choice == "o":
             break
         if choice == "n":
-            new_path = input("Enter new export path: ").strip()
+            new_path = _session_input("Enter new export path: ").strip()
             if not new_path:
                 print("No path entered. Canceling export.")
                 return
@@ -193,7 +197,7 @@ def _export_secrets():
         print("Export cancelled.")
         return
 
-    confirm = input(f"Export will write plaintext secrets to '{target}'. Continue? (y/N): ").strip().lower()
+    confirm = _session_input(f"Export will write plaintext secrets to '{target}'. Continue? (y/N): ").strip().lower()
     if confirm != "y":
         print("Export cancelled.")
         return
@@ -207,7 +211,7 @@ def _export_secrets():
 
 
 def _import_secrets():
-    user_path = input(f"Enter path to CSV to import (default: {DEFAULT_EXPORT_CSV}):").strip()
+    user_path = _session_input(f"Enter path to CSV to import (default: {DEFAULT_EXPORT_CSV}):").strip()
     source = Path(user_path) if user_path else DEFAULT_EXPORT_CSV
 
     if not source.exists():
@@ -216,14 +220,14 @@ def _import_secrets():
 
     def rename_resolver(existing_name):
         print(f"Secret '{existing_name}' already exists.")
-        choice = input("(s)kip, (o)verwrite, (r)ename? [s/o/r]: ").strip().lower() or "s"
+        choice = _session_input("(s)kip, (o)verwrite, (r)ename? [s/o/r]: ").strip().lower() or "s"
         if choice == "s":
             return None
         if choice == "o":
             return existing_name
-        new_name = input("Enter new name: ").strip()
+        new_name = _session_input("Enter new name: ").strip()
         while not new_name or SERVICE.get_secret(new_name):
-            new_name = input("Name invalid or exists. Enter a different name: ").strip()
+            new_name = _session_input("Name invalid or exists. Enter a different name: ").strip()
         return new_name
 
     try:
@@ -270,32 +274,58 @@ def _get_menu():
     }
 
 
+def _session_input(prompt):
+    return timed_input(prompt, SESSION_IDLE_LOCK_SECONDS)
+
+
+def _session_secure_input(prompt):
+    return timed_secure_input(prompt, SESSION_IDLE_LOCK_SECONDS)
+
+
+def _handle_session_idle_timeout():
+    SERVICE.lock_vault()
+    print(f"\nVault locked after {SESSION_IDLE_LOCK_SECONDS} second(s) of inactivity.")
+    time.sleep(1)
+    clear_screen()
+
+
+def _run_authenticated_session():
+    while True:
+        try:
+            _show_menu()
+            user_choice = _session_input("Enter your choice: ")
+            func = _get_menu().get(user_choice)
+
+            if not func:
+                print("Invalid choice. Please try again.\n")
+                continue
+
+            handled_continue_prompt = func()
+            if not handled_continue_prompt:
+                _session_input("Press Enter to continue...")
+            clear_screen()
+        except IdleTimeoutError:
+            _handle_session_idle_timeout()
+            return "locked"
+
+
 def main():
     try:
         if not SERVICE.initialize():
             _initial_setup()
-        is_authenticated = _authenticate()
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"Startup failed: {exc}")
         _print_recovery_instructions(exc)
         return 1
 
-    if not is_authenticated:
-        return 0
-
     while True:
-        _show_menu()
-        user_choice = input("Enter your choice: ")
-        func = _get_menu().get(user_choice)
+        is_authenticated = _authenticate()
+        if not is_authenticated:
+            return 0
 
-        if not func:
-            print("Invalid choice. Please try again.\n")
-            continue
-
-        handled_continue_prompt = func()
-        if not handled_continue_prompt:
-            input("Press Enter to continue...")
-        clear_screen()
+        session_result = _run_authenticated_session()
+        if session_result != "locked":
+            return 0
 
 
 if __name__ == "__main__":

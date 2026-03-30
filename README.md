@@ -10,10 +10,9 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-`v2.0.2`
+`v2.0.3`
 
-- lets users click the username to copy it in the desktop UI
-- lets users click the stored URL to open it in the default browser
+- automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity
 
 Important Disclaimer
 --------------------
@@ -78,6 +77,7 @@ Features & Functionality
     - Clicking the stored URL opens it in the default browser.
     - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
     - `v2.0.2` adds click-to-copy for usernames and click-to-open behavior for stored URLs.
+    - `v2.0.3` automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options

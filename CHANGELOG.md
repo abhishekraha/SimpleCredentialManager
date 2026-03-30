@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.3 - 2026-03-30
+
+### Added
+- Added automatic locking after 1 minute of inactivity.
+
 ## v2.0.2 - 2026-03-30
 
 ### Changed
