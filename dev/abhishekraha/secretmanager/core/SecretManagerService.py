@@ -452,9 +452,13 @@ class SecretManagerService:
         self._require_unlocked()
         self._audit("secret_viewed", secret_name=secret_name)
 
-    def record_secret_copy(self, secret_name):
+    def record_secret_copy(self, secret_name, field_name="password"):
         self._require_unlocked()
-        self._audit("secret_copied_to_clipboard", secret_name=secret_name)
+        self._audit(
+            "secret_copied_to_clipboard",
+            secret_name=secret_name,
+            field_name=field_name,
+        )
 
     def record_secret_listing(self, result_count, filter_applied=False):
         self._require_unlocked()

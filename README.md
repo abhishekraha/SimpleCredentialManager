@@ -10,9 +10,10 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-`v2.0.1`
+`v2.0.2`
 
-- adds bulk insert support in both the desktop UI and the CLI
+- lets users click the username to copy it in the desktop UI
+- lets users click the stored URL to open it in the default browser
 
 Important Disclaimer
 --------------------
@@ -73,7 +74,10 @@ Features & Functionality
 6) Desktop UI
     - `v2.0.0` introduced a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
     - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, and lock.
+    - In the details view, clicking the username copies it to the clipboard and clicking the password copies the password.
+    - Clicking the stored URL opens it in the default browser.
     - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
+    - `v2.0.2` adds click-to-copy for usernames and click-to-open behavior for stored URLs.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options

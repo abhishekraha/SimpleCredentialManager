@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.2 - 2026-03-30
+
+### Changed
+- Updated the desktop UI so clicking the username field copies the username to the clipboard.
+- Updated the desktop UI so clicking the URL field opens the stored link in the default browser.
+
 ## v2.0.1 - 2026-03-30
 
 ### Added
