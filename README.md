@@ -22,9 +22,9 @@ from the release tag without maintaining a separate packaging script.
 The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
 validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
 
-`v2.0.4`
+`v2.0.5`
 
-- adds GitHub release update awareness across the app, including startup checks, footer status indicators, update prompts, and CLI startup warnings
+- adds ability to change the master password while the vault is unlocked, available in both CLI and GUI
 
 Important Disclaimer
 --------------------
@@ -50,8 +50,9 @@ Use this software only if you understand:
 Do not treat this project as production-grade security software unless you have independently reviewed and validated the
 implementation for your own use case.
 
-![SimpleCredentialManager.png](images/SimpleCredentialManager.png)
-![SimpleCredentialManager1.png](images/SimpleCredentialManager1.png)
+![login](images/SCM-login.png)
+![home](images/SCM-home.png)
+![bulk-insert](images/SCM-bulk-insert.png)
 
 Features & Functionality
 ------------------------
