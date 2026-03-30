@@ -151,6 +151,41 @@ class SecretManagerService:
             "remaining_attempts_before_lockout": metadata.get_remaining_attempts_before_lockout(),
         }
 
+    def change_master_password(self, current_password, new_password, confirmation_password):
+        metadata = self._require_metadata()
+
+        if not current_password:
+            self._audit("master_password_change_failed", status="failed", reason="empty_current_password")
+            raise ValueError("Current master password cannot be empty.")
+        if not new_password:
+            self._audit("master_password_change_failed", status="failed", reason="empty_new_password")
+            raise ValueError("New master password cannot be empty.")
+        if new_password != confirmation_password:
+            self._audit("master_password_change_failed", status="failed", reason="password_mismatch")
+            raise ValueError("New password and confirmation do not match. Please try again.")
+        if current_password == new_password:
+            self._audit("master_password_change_failed", status="failed", reason="same_password")
+            raise ValueError("New password must be different from the current password.")
+
+        if not metadata.validate_master_password(current_password):
+            self._audit("master_password_change_failed", status="failed", reason="invalid_current_password")
+            raise ValueError("Current master password is invalid.")
+
+        try:
+            # Update password verifier for future authentications
+            metadata.set_master_password(new_password)
+            self._persist_metadata()
+
+            # Re-derive key with new password and re-encrypt all secrets
+            CodecUtils.clear_derived_key()
+            CodecUtils.derive_key(new_password, metadata.get_salt())
+            self._persist_secrets()
+
+            self._audit("master_password_changed")
+        except Exception:
+            self._audit("master_password_change_failed", status="failed", reason="persistence_error")
+            raise
+
     def lock_vault(self):
         had_active_session = self.is_unlocked() or bool(self._secrets)
         self._clear_session()

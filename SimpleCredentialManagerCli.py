@@ -259,6 +259,21 @@ def _import_secrets():
     print("No changes made from import.")
 
 
+def _change_master_password():
+    print("You will be prompted to enter your current master password and then set a new one.")
+    current_password = _session_secure_input("Enter current master password: ")
+    new_password = _session_secure_input("Enter new master password: ")
+    confirm_password = _session_secure_input("Confirm new master password: ")
+
+    try:
+        SERVICE.change_master_password(current_password, new_password, confirm_password)
+    except Exception as exc:
+        print(exc)
+        return
+    print("Master password changed successfully.")
+    time.sleep(2)
+
+
 def _exit_application():
     SERVICE.lock_vault()
     raise SystemExit(0)
@@ -274,7 +289,8 @@ def _show_menu():
     print("6. List All Secrets")
     print("7. Export Secrets (CSV)")
     print("8. Import Secrets (CSV)")
-    print("9. Exit")
+    print("9. Change Master Password")
+    print("10. Exit")
 
 
 def _get_menu():
@@ -287,7 +303,8 @@ def _get_menu():
         "6": _list_secrets,
         "7": _export_secrets,
         "8": _import_secrets,
-        "9": _exit_application,
+        "9": _change_master_password,
+        "10": _exit_application,
     }
 
 

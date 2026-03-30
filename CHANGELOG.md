@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.5 - 2026-03-30
+
+### Added
+- Added ability to change the master password
+
 ## v2.0.4 - 2026-03-30
 
 ### Added

@@ -139,6 +139,64 @@ class BulkInsertDialog(tk.Toplevel):
         self.destroy()
 
 
+class MasterPasswordDialog(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.result = None
+        self.title("Change master password")
+        self.transient(master)
+        self.resizable(False, False)
+        self.columnconfigure(1, weight=1)
+
+        self.current_password_var = tk.StringVar(value="")
+        self.new_password_var = tk.StringVar(value="")
+        self.confirm_password_var = tk.StringVar(value="")
+        self.show_password_var = tk.BooleanVar(value=False)
+
+        ttk.Label(self, text="Current master password").grid(row=0, column=0, padx=16, pady=(16, 8), sticky="w")
+        self.current_password_entry = ttk.Entry(self, textvariable=self.current_password_var, width=44, show="*")
+        self.current_password_entry.grid(row=0, column=1, padx=(0, 16), pady=(16, 8), sticky="ew")
+
+        ttk.Label(self, text="New master password").grid(row=1, column=0, padx=16, pady=8, sticky="w")
+        self.new_password_entry = ttk.Entry(self, textvariable=self.new_password_var, width=44, show="*")
+        self.new_password_entry.grid(row=1, column=1, padx=(0, 16), pady=8, sticky="ew")
+
+        ttk.Label(self, text="Confirm new password").grid(row=2, column=0, padx=16, pady=8, sticky="w")
+        self.confirm_password_entry = ttk.Entry(self, textvariable=self.confirm_password_var, width=44, show="*")
+        self.confirm_password_entry.grid(row=2, column=1, padx=(0, 16), pady=8, sticky="ew")
+
+        ttk.Checkbutton(
+            self,
+            text="Show passwords",
+            variable=self.show_password_var,
+            command=self._toggle_password_visibility,
+        ).grid(row=3, column=1, padx=(0, 16), pady=(0, 8), sticky="w")
+
+        action_frame = ttk.Frame(self)
+        action_frame.grid(row=4, column=0, columnspan=2, padx=16, pady=(8, 16), sticky="e")
+        ttk.Button(action_frame, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(action_frame, text="Change", command=self._save).pack(side="right", padx=(0, 8))
+
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.grab_set()
+        self.current_password_entry.focus_set()
+
+    def _toggle_password_visibility(self):
+        show_char = "" if self.show_password_var.get() else "*"
+        self.current_password_entry.configure(show=show_char)
+        self.new_password_entry.configure(show=show_char)
+        self.confirm_password_entry.configure(show=show_char)
+
+    def _save(self):
+        self.result = {
+            "current_password": self.current_password_var.get(),
+            "new_password": self.new_password_var.get(),
+            "confirm_password": self.confirm_password_var.get(),
+        }
+        self.destroy()
+
+
 class SimpleCredentialManagerUi(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -364,6 +422,7 @@ class SimpleCredentialManagerUi(tk.Tk):
             ("Delete", self._delete_selected_secret),
             ("Import CSV", self._import_secrets),
             ("Export CSV", self._export_secrets),
+            ("Change Master Password", self._change_master_password),
         ]:
             ttk.Button(toolbar, text=label, command=command).pack(side="left", padx=(0, 8))
 
@@ -708,6 +767,27 @@ class SimpleCredentialManagerUi(tk.Tk):
             messagebox.showerror("Export failed", str(exc), parent=self)
             return
         self.status_var.set(f"Exported secrets to {target}.")
+
+    def _change_master_password(self):
+        dialog = MasterPasswordDialog(self)
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+        try:
+            self.service.change_master_password(
+                dialog.result["current_password"],
+                dialog.result["new_password"],
+                dialog.result["confirm_password"],
+            )
+        except Exception as exc:
+            messagebox.showerror("Change master password", str(exc), parent=self)
+            return
+        messagebox.showinfo(
+            "Master password changed",
+            "Your master password has been updated successfully.",
+            parent=self,
+        )
+        self.status_var.set("Master password changed successfully.")
 
     def _lock_and_return_to_login(self):
         self._stop_idle_monitoring()
