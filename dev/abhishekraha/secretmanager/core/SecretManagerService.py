@@ -1,4 +1,5 @@
 import csv
+import io
 from datetime import datetime
 from pathlib import Path
 
@@ -194,6 +195,102 @@ class SecretManagerService:
         self._secrets[name] = Secret(name, username or "", password or "", url or "", comments or "")
         self._persist_secrets()
         self._audit("secret_added", secret_name=name)
+
+    def bulk_insert_secrets(self, csv_payload):
+        self._require_unlocked()
+
+        payload = (csv_payload or "").strip()
+        if not payload:
+            self._audit("bulk_insert_failed", status="failed", reason="empty_input")
+            raise ValueError("Bulk insert input is empty.")
+
+        expected_headers = ["name", "username", "password", "url", "comments"]
+        rows = list(csv.reader(io.StringIO(payload)))
+        if not rows or not rows[0]:
+            self._audit("bulk_insert_failed", status="failed", reason="missing_header")
+            raise ValueError("Bulk insert input must include a header row.")
+
+        normalized_headers = [header.strip().lower() for header in rows[0]]
+        if normalized_headers != expected_headers:
+            self._audit(
+                "bulk_insert_failed",
+                status="failed",
+                reason="invalid_headers",
+                provided_headers=normalized_headers,
+            )
+            raise ValueError(
+                "Bulk insert header must be exactly: name,username,password,url,comments"
+            )
+
+        prepared_secrets = []
+        pending_names = set()
+        skipped_blank_rows = 0
+        validation_errors = []
+
+        for line_number, row in enumerate(rows[1:], start=2):
+            if not row or not any((value or "").strip() for value in row):
+                skipped_blank_rows += 1
+                continue
+
+            if len(row) > len(expected_headers):
+                validation_errors.append(
+                    f"Line {line_number}: expected {len(expected_headers)} columns but found {len(row)}."
+                )
+                continue
+
+            padded_row = row + [""] * (len(expected_headers) - len(row))
+            normalized_row = {
+                normalized_headers[index]: value
+                for index, value in enumerate(padded_row)
+            }
+            if not any((value or "").strip() for value in normalized_row.values()):
+                skipped_blank_rows += 1
+                continue
+
+            secret_name = (normalized_row.get("name") or "").strip()
+            if not secret_name:
+                validation_errors.append(f"Line {line_number}: secret name is required.")
+                continue
+            if secret_name in self._secrets or secret_name in pending_names:
+                validation_errors.append(
+                    f"Line {line_number}: a secret named '{secret_name}' already exists."
+                )
+                continue
+
+            pending_names.add(secret_name)
+            prepared_secrets.append(
+                Secret(
+                    secret_name,
+                    normalized_row.get("username", "") or "",
+                    normalized_row.get("password", "") or "",
+                    normalized_row.get("url", "") or "",
+                    normalized_row.get("comments", "") or "",
+                )
+            )
+
+        if validation_errors:
+            self._audit(
+                "bulk_insert_failed",
+                status="failed",
+                reason="validation_error",
+                error_count=len(validation_errors),
+            )
+            raise ValueError("\n".join(validation_errors[:5]))
+
+        for secret in prepared_secrets:
+            self._secrets[secret.get_name()] = secret
+
+        if prepared_secrets:
+            self._persist_secrets()
+            for secret in prepared_secrets:
+                self._audit("secret_added", secret_name=secret.get_name())
+
+        summary = {
+            "added": len(prepared_secrets),
+            "skipped_blank_rows": skipped_blank_rows,
+        }
+        self._audit("bulk_insert_completed", **summary)
+        return summary
 
     def update_secret(self, original_name, new_name, username, password, url="", comments=""):
         self._require_unlocked()

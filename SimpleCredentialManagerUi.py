@@ -88,6 +88,49 @@ class SecretEditorDialog(tk.Toplevel):
         self.destroy()
 
 
+class BulkInsertDialog(tk.Toplevel):
+    HEADER_TEMPLATE = "name,username,password,url,comments\n"
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.result = None
+        self.title("Bulk insert secrets")
+        self.transient(master)
+        self.geometry("760x420")
+        self.minsize(680, 360)
+
+        container = ttk.Frame(self, padding=16)
+        container.pack(fill="both", expand=True)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(2, weight=1)
+
+        ttk.Label(container, text="Bulk insert (CSV)", style="Section.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(
+            container,
+            text="Keep the header row. Add one comma-separated secret per line. Quote values that contain commas.",
+            wraplength=700,
+        ).grid(row=1, column=0, sticky="w", pady=(8, 12))
+
+        self.input_box = tk.Text(container, wrap="none")
+        self.input_box.grid(row=2, column=0, sticky="nsew")
+        self.input_box.insert("1.0", self.HEADER_TEMPLATE)
+
+        action_frame = ttk.Frame(container)
+        action_frame.grid(row=3, column=0, sticky="e", pady=(12, 0))
+        ttk.Button(action_frame, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(action_frame, text="Insert", command=self._save).pack(side="right", padx=(0, 8))
+
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.grab_set()
+        self.input_box.focus_set()
+
+    def _save(self):
+        self.result = self.input_box.get("1.0", "end").rstrip()
+        self.destroy()
+
+
 class SimpleCredentialManagerUi(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -282,6 +325,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         ttk.Entry(toolbar, textvariable=self.search_var, width=28).pack(side="left", padx=(8, 16))
         for label, command in [
             ("Add", self._add_secret),
+            ("Bulk Insert", self._bulk_insert_secrets),
             ("Edit", self._edit_selected_secret),
             ("Delete", self._delete_selected_secret),
             ("Import CSV", self._import_secrets),
@@ -445,6 +489,23 @@ class SimpleCredentialManagerUi(tk.Tk):
             return
         self.status_var.set(f"Added '{dialog.result['name']}'.")
         self.current_secret_name = dialog.result["name"]
+        self._refresh_secret_tree()
+
+    def _bulk_insert_secrets(self):
+        dialog = BulkInsertDialog(self)
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+
+        try:
+            summary = self.service.bulk_insert_secrets(dialog.result)
+        except Exception as exc:
+            messagebox.showerror("Bulk insert", str(exc), parent=self)
+            return
+
+        self.status_var.set(
+            f"Bulk insert complete. Added {summary['added']}, skipped blank rows {summary['skipped_blank_rows']}."
+        )
         self._refresh_secret_tree()
 
     def _edit_selected_secret(self):

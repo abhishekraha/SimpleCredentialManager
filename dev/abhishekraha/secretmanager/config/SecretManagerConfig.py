@@ -1,9 +1,9 @@
 from pathlib import Path
 
 APP_NAME = "Simple Credential Manager"
-APP_VERSION = "v2.0.0"
+APP_VERSION = "v2.0.1"
 APP_AUTHOR = "Abhishek Raha"
-APP_COPYRIGHT = "© 2026 Abhishek Raha. All rights reserved."
+APP_COPYRIGHT = f"© 2026 ${APP_AUTHOR}. All rights reserved."
 APP_REPOSITORY_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
 USER_HOME = Path.home()
 APP_HOME_DIR = Path.joinpath(USER_HOME, '.simpleCredentialManager')
@@ -16,11 +16,11 @@ DEFAULT_EXPORT_CSV = Path.joinpath(APP_HOME_DIR, 'secrets_export.csv')
 FAILED_AUTH_LOCKOUT_THRESHOLD = 3
 FAILED_AUTH_LOCKOUT_BASE_SECONDS = 30
 FAILED_AUTH_LOCKOUT_MAX_SECONDS = 900
-BUG_REPORT_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
+BUG_REPORT_URL = "https://github.com/abhishekraha/SimpleCredentialManager/issues"
 
-HEADER = """
+HEADER = f"""
 ======================================================    
             Simple Credentials Manager
-                                        v2.0.0
+                                        ${APP_VERSION}
 ======================================================    
 """
