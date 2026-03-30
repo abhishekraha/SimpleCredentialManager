@@ -19,6 +19,9 @@ release named `SimpleCredentialManager.v<version number>`.
 That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
 from the release tag without maintaining a separate packaging script.
 
+The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
+validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
+
 `v2.0.3`
 
 - automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity
