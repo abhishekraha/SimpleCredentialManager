@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.4 - 2026-03-30
+
+### Added
+- Added GitHub release update awareness across the app, including startup checks, UI footer status indicators, update prompts, and a 10-second CLI warning when a newer or stale release is detected.
+
 ## v2.0.3 - 2026-03-30
 
 ### Added
