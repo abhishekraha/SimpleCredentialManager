@@ -14,7 +14,7 @@ Release Packaging
 -----------------
 
 After a successful merge to `main` and a passing GitHub Actions test run, the repository automatically creates a GitHub
-release named `SimpleCredentialManager.v<version number>`.
+release named `v<version number>`.
 
 That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
 from the release tag without maintaining a separate packaging script.
