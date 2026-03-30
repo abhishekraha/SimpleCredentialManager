@@ -23,13 +23,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -48,7 +48,7 @@ jobs:
               raise SystemExit("APP_VERSION was not found in SecretManagerConfig.py")
 
           version = version_match.group(1)
-          release_name = f"SimpleCredentialManager.v{version}"
+          release_name = f"v{version}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as github_output:
               github_output.write(f"version={version}\n")
@@ -56,7 +56,7 @@ jobs:
 
       - name: Check whether release already exists
         id: release_check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           RELEASE_NAME: ${{ steps.version.outputs.release_name }}
         with:
@@ -79,7 +79,7 @@ jobs:
 
       - name: Create GitHub release
         if: steps.release_check.outputs.exists != 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           RELEASE_NAME: ${{ steps.version.outputs.release_name }}
           APP_VERSION: v${{ steps.version.outputs.version }}
