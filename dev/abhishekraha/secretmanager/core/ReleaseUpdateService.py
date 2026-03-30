@@ -10,7 +10,6 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_VERSION,
     RELEASE_STALE_AFTER_DAYS,
     RELEASE_STATUS_CACHE_FILE,
-    RELEASE_STATUS_CACHE_TTL_SECONDS,
     RELEASE_UPDATE_API_URL,
     RELEASE_UPDATE_REQUEST_TIMEOUT_SECONDS,
 )
@@ -23,7 +22,6 @@ class ReleaseUpdateService:
         api_url=RELEASE_UPDATE_API_URL,
         release_page_url=APP_RELEASES_URL,
         cache_file=RELEASE_STATUS_CACHE_FILE,
-        cache_ttl_seconds=RELEASE_STATUS_CACHE_TTL_SECONDS,
         stale_after_days=RELEASE_STALE_AFTER_DAYS,
         request_timeout_seconds=RELEASE_UPDATE_REQUEST_TIMEOUT_SECONDS,
     ):
@@ -31,20 +29,17 @@ class ReleaseUpdateService:
         self._api_url = api_url
         self._release_page_url = release_page_url
         self._cache_file = Path(cache_file)
-        self._cache_ttl_seconds = cache_ttl_seconds
         self._stale_after_days = stale_after_days
         self._request_timeout_seconds = request_timeout_seconds
 
-    def check_for_updates(self, force_refresh=False):
-        cached_payload = self._load_cached_payload()
-        if cached_payload and not force_refresh and self._is_cache_fresh(cached_payload):
-            return self._build_status(cached_payload, source="cache")
+    def check_for_updates(self):
 
         fetched_payload = self._fetch_latest_release_payload()
         if fetched_payload:
             self._save_cached_payload(fetched_payload)
             return self._build_status(fetched_payload, source="network")
 
+        cached_payload = self._load_cached_payload()
         if cached_payload:
             return self._build_status(cached_payload, source="cache-fallback")
         return self._build_status({}, source="unavailable")
@@ -113,15 +108,6 @@ class ReleaseUpdateService:
             return json.loads(self._cache_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
-
-    def _is_cache_fresh(self, payload):
-        checked_at = payload.get("checked_at")
-        if not checked_at:
-            return False
-        parsed_checked_at = _parse_iso_datetime(checked_at)
-        if parsed_checked_at is None:
-            return False
-        return datetime.now(timezone.utc) - parsed_checked_at <= timedelta(seconds=self._cache_ttl_seconds)
 
     def _save_cached_payload(self, payload):
         try:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 APP_NAME = "Simple Credential Manager"
-APP_VERSION = "v2.0.5"
+APP_VERSION = "v2.0.6"
 APP_AUTHOR = "Abhishek Raha"
 APP_COPYRIGHT = f"© 2026 {APP_AUTHOR}. All rights reserved."
 APP_REPOSITORY_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
@@ -20,7 +20,6 @@ FAILED_AUTH_LOCKOUT_BASE_SECONDS = 30
 FAILED_AUTH_LOCKOUT_MAX_SECONDS = 900
 SESSION_IDLE_LOCK_SECONDS = 60
 RELEASE_UPDATE_API_URL = "https://api.github.com/repos/abhishekraha/SimpleCredentialManager/releases/latest"
-RELEASE_STATUS_CACHE_TTL_SECONDS = 21600
 RELEASE_STALE_AFTER_DAYS = 30
 RELEASE_UPDATE_REQUEST_TIMEOUT_SECONDS = 5
 CLI_RELEASE_WARNING_SECONDS = 10
@@ -30,5 +29,5 @@ HEADER = f"""
 ======================================================    
             Simple Credentials Manager
                                         {APP_VERSION}
-======================================================    
+======================================================
 """

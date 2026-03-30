@@ -40,7 +40,7 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
                 "dev.abhishekraha.secretmanager.core.ReleaseUpdateService.urlopen",
                 return_value=_FakeHttpResponse(release_payload),
             ):
-                status = service.check_for_updates(force_refresh=True)
+                status = service.check_for_updates()
 
         self.assertTrue(status["update_available"])
         self.assertFalse(status["is_stale"])
@@ -67,7 +67,7 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
                 "dev.abhishekraha.secretmanager.core.ReleaseUpdateService.urlopen",
                 return_value=_FakeHttpResponse(release_payload),
             ):
-                status = service.check_for_updates(force_refresh=True)
+                status = service.check_for_updates()
 
         self.assertFalse(status["update_available"])
         self.assertTrue(status["is_stale"])
@@ -96,7 +96,7 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
                 "dev.abhishekraha.secretmanager.core.ReleaseUpdateService.urlopen",
                 side_effect=OSError("network unavailable"),
             ):
-                status = service.check_for_updates(force_refresh=True)
+                status = service.check_for_updates()
 
         self.assertTrue(status["update_available"])
         self.assertEqual("cache-fallback", status["source"])
