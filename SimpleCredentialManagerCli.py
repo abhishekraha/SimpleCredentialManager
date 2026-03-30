@@ -2,9 +2,13 @@ import time
 from pathlib import Path
 
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
+    CLI_RELEASE_WARNING_SECONDS,
     DEFAULT_EXPORT_CSV,
     HEADER,
     SESSION_IDLE_LOCK_SECONDS,
+)
+from dev.abhishekraha.secretmanager.core.ReleaseUpdateService import (
+    ReleaseUpdateService,
 )
 from dev.abhishekraha.secretmanager.core.SecretManagerService import (
     SecretManagerService,
@@ -19,6 +23,7 @@ from dev.abhishekraha.secretmanager.utils.Utils import (
 )
 
 SERVICE = SecretManagerService(client_name="cli")
+RELEASE_UPDATE_SERVICE = ReleaseUpdateService()
 BULK_INSERT_HEADER = "name,username,password,url,comments"
 
 
@@ -30,6 +35,18 @@ def _print_recovery_instructions(error):
     print("\nRecovery instructions:")
     for index, instruction in enumerate(instructions, start=1):
         print(f"{index}. {instruction}")
+
+
+def _show_startup_release_warning():
+    release_status = RELEASE_UPDATE_SERVICE.check_for_updates()
+    warning_lines = RELEASE_UPDATE_SERVICE.build_cli_warning_lines(release_status)
+    if not warning_lines:
+        return
+
+    print("\n".join(warning_lines))
+    print(f"[WARNING] Continuing in {CLI_RELEASE_WARNING_SECONDS} second(s)...")
+    time.sleep(CLI_RELEASE_WARNING_SECONDS)
+    clear_screen()
 
 
 def _initial_setup():
@@ -310,6 +327,7 @@ def _run_authenticated_session():
 
 
 def main():
+    _show_startup_release_warning()
     try:
         if not SERVICE.initialize():
             _initial_setup()

@@ -22,9 +22,9 @@ from the release tag without maintaining a separate packaging script.
 The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
 validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
 
-`v2.0.3`
+`v2.0.4`
 
-- automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity
+- adds GitHub release update awareness across the app, including startup checks, footer status indicators, update prompts, and CLI startup warnings
 
 Important Disclaimer
 --------------------
@@ -90,9 +90,11 @@ Features & Functionality
     - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
     - `v2.0.2` adds click-to-copy for usernames and click-to-open behavior for stored URLs.
     - `v2.0.3` automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity.
+    - `v2.0.4` adds GitHub release update awareness, including startup checks, a clickable update prompt, and footer version coloring for update and stale-release states.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options
+    - Startup release warning: `v2.0.4` adds a GitHub release check on startup and shows a warning for 10 seconds before continuing when an update is available or the latest release is stale.
     - Add Secret: interactively add a new secret.
     - Bulk Insert Secrets: paste comma-separated rows into the CLI using the displayed header format.
     - View Secret: view details for a stored secret (requires master password).

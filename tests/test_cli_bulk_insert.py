@@ -82,6 +82,26 @@ class CliBulkInsertTests(unittest.TestCase):
         mocked_clear_screen.assert_called_once()
         self.assertIn("Vault locked after", mocked_stdout.getvalue())
 
+    @patch.object(cli, "clear_screen")
+    @patch.object(cli, "RELEASE_UPDATE_SERVICE", new_callable=MagicMock)
+    def test_show_startup_release_warning_waits_before_continue(
+        self,
+        mocked_release_service,
+        mocked_clear_screen,
+    ):
+        mocked_release_service.check_for_updates.return_value = {"update_available": True}
+        mocked_release_service.build_cli_warning_lines.return_value = [
+            "[WARNING] A newer version is available on GitHub: v2.0.4",
+        ]
+
+        with patch("time.sleep") as mocked_sleep:
+            with patch("sys.stdout", new_callable=io.StringIO) as mocked_stdout:
+                cli._show_startup_release_warning()
+
+        mocked_sleep.assert_called_once_with(cli.CLI_RELEASE_WARNING_SECONDS)
+        mocked_clear_screen.assert_called_once()
+        self.assertIn("Continuing in", mocked_stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import tkinter as tk
+import threading
 import time
 import webbrowser
 from pathlib import Path
@@ -9,11 +10,15 @@ from urllib.parse import urlparse
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_COPYRIGHT,
     APP_NAME,
+    APP_RELEASES_URL,
     APP_REPOSITORY_URL,
     APP_VERSION,
     BUG_REPORT_URL,
     DEFAULT_EXPORT_CSV,
     SESSION_IDLE_LOCK_SECONDS,
+)
+from dev.abhishekraha.secretmanager.core.ReleaseUpdateService import (
+    ReleaseUpdateService,
 )
 from dev.abhishekraha.secretmanager.core.SecretManagerService import (
     SecretManagerService,
@@ -137,6 +142,7 @@ class BulkInsertDialog(tk.Toplevel):
 class SimpleCredentialManagerUi(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.release_update_service = ReleaseUpdateService()
         self.service = SecretManagerService(client_name="ui")
         self.status_var = tk.StringVar(value="Starting up...")
         self.search_var = tk.StringVar()
@@ -150,6 +156,8 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.current_secret_username = ""
         self.current_password_mask = ""
         self.toast_popup = None
+        self.release_status = {}
+        self.release_prompt_shown = False
 
         self.title(f"{APP_NAME} {APP_VERSION}")
         self.geometry("1160x760")
@@ -169,9 +177,18 @@ class SimpleCredentialManagerUi(tk.Tk):
 
         footer_right = ttk.Frame(self.footer)
         footer_right.pack(side="right")
+        self.version_label = ttk.Label(
+            footer_right,
+            text=APP_VERSION,
+            style="FooterVersion.TLabel",
+            cursor="hand2",
+        )
+        self.version_label.pack(side="left")
+        self.version_label.bind("<Button-1>", self._open_release_link)
+        ttk.Label(footer_right, text=" | ", style="Footer.TLabel").pack(side="left")
         ttk.Label(
             footer_right,
-            text=f"{APP_VERSION} | {APP_COPYRIGHT}",
+            text=APP_COPYRIGHT,
             style="Footer.TLabel",
         ).pack(side="left")
         ttk.Label(footer_right, text=" | ", style="Footer.TLabel").pack(side="left")
@@ -189,6 +206,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.bind_all("<Motion>", self._record_user_activity, add="+")
 
         self.after(50, self._bootstrap)
+        self.after(150, self._start_release_check)
 
     def _configure_style(self):
         style = ttk.Style(self)
@@ -199,6 +217,9 @@ class SimpleCredentialManagerUi(tk.Tk):
         style.configure("Section.TLabel", font=("Segoe UI", 11, "bold"))
         style.configure("Footer.TLabel", font=("Segoe UI", 9))
         style.configure("FooterLink.TLabel", font=("Segoe UI", 9, "underline"))
+        style.configure("FooterVersion.TLabel", font=("Segoe UI", 9, "bold"))
+        style.configure("FooterVersionWarning.TLabel", font=("Segoe UI", 9, "bold"), foreground="#b58900")
+        style.configure("FooterVersionStale.TLabel", font=("Segoe UI", 9, "bold"), foreground="#c0392b")
 
     def _bootstrap(self):
         try:
@@ -754,6 +775,47 @@ class SimpleCredentialManagerUi(tk.Tk):
             return True
         except tk.TclError:
             return copy_to_clipboard(clipboard_text)
+
+    def _start_release_check(self):
+        threading.Thread(target=self._load_release_status, daemon=True).start()
+
+    def _load_release_status(self):
+        release_status = self.release_update_service.check_for_updates()
+        try:
+            self.after(0, lambda: self._apply_release_status(release_status))
+        except tk.TclError:
+            return
+
+    def _apply_release_status(self, release_status):
+        self.release_status = release_status
+        indicator = self.release_update_service.get_release_indicator(release_status)
+        style_name = {
+            "normal": "FooterVersion.TLabel",
+            "update": "FooterVersionWarning.TLabel",
+            "stale": "FooterVersionStale.TLabel",
+        }[indicator]
+        self.version_label.configure(style=style_name)
+
+        if release_status.get("update_available") and not self.release_prompt_shown:
+            self.release_prompt_shown = True
+            latest_version = release_status.get("latest_version_label") or "A newer version"
+            if messagebox.askyesno(
+                "Update available",
+                (
+                    f"{latest_version} is available on GitHub.\n\n"
+                    "Do you want to open the download page now?"
+                ),
+                parent=self,
+            ):
+                self._open_release_link(download_preferred=True)
+
+    def _open_release_link(self, _event=None, download_preferred=False):
+        target_url = None
+        if download_preferred:
+            target_url = self.release_status.get("download_url")
+        if not target_url:
+            target_url = self.release_status.get("release_url") or APP_RELEASES_URL
+        webbrowser.open_new_tab(target_url)
 
     def _start_idle_monitoring(self):
         self.idle_monitoring_enabled = True
