@@ -10,21 +10,9 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-Release Packaging
------------------
+`v2.0.6`
 
-After a successful merge to `main` and a passing GitHub Actions test run, the repository automatically creates a GitHub
-release named `v<version number>`.
-
-That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
-from the release tag without maintaining a separate packaging script.
-
-The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
-validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
-
-`v2.0.5`
-
-- adds ability to change the master password while the vault is unlocked, available in both CLI and GUI
+- [ BugFix ] Fixed bug in version check logic where cached release data was being used for the first 6 hours to save network cost.
 
 Important Disclaimer
 --------------------
@@ -177,6 +165,18 @@ To build and run the container:
     cd container
     docker build -t simple-credential-manager .
     docker run -it --rm simple-credential-manager
+
+Release Packaging
+-----------------
+
+After a successful merge to `main` and a passing GitHub Actions test run, the repository automatically creates a GitHub
+release named `v<version number>`.
+
+That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
+from the release tag without maintaining a separate packaging script.
+
+The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
+validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
 
 License
 -------

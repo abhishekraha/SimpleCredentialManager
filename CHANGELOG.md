@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.-0.6 - 2026-03-30
+### Changed
+- Fixed a bug in the version check logic where cached release data was being used for the first 6 hours to save network cost
+
 ## v2.0.5 - 2026-03-30
 
 ### Added
