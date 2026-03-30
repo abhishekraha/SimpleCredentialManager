@@ -3,9 +3,11 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from dev.abhishekraha.secretmanager.codec import CodecUtils, SerDeUtils
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import FAILED_AUTH_LOCKOUT_BASE_SECONDS
+from dev.abhishekraha.secretmanager.core.SecretManagerService import SecretManagerService
 from dev.abhishekraha.secretmanager.model.Secret import Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import SecretManagerMetaDataManager
 from dev.abhishekraha.secretmanager.utils.AuditLogger import log_event
@@ -94,6 +96,25 @@ class SecureStorageTests(unittest.TestCase):
             self.assertEqual(2, audit_record["failed_attempts"])
             self.assertEqual(1, audit_record["attempts_before_lockout"])
             self.assertIn("timestamp", audit_record)
+
+    def test_bulk_insert_secrets_parses_rows_and_skips_blank_lines(self):
+        service = SecretManagerService(client_name="test")
+        payload = (
+            "name,username,password,url,comments\n"
+            "github,alice,s3cr3t,https://github.com,primary\n"
+            "\n"
+            "email,bob,p4ss,https://example.com,backup\n"
+        )
+
+        with patch.object(service, "is_unlocked", return_value=True):
+            with patch.object(service, "_persist_secrets") as mocked_persist:
+                with patch.object(service, "_audit"):
+                    summary = service.bulk_insert_secrets(payload)
+
+        self.assertEqual({"added": 2, "skipped_blank_rows": 1}, summary)
+        self.assertEqual("alice", service._secrets["github"].get_username())
+        self.assertEqual("p4ss", service._secrets["email"].get_password())
+        mocked_persist.assert_called_once()
 
 
 if __name__ == "__main__":

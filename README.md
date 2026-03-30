@@ -8,17 +8,11 @@ master password.
 Change Log
 ---------------
 
-`v2.0.0`
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-- adds a cross-platform desktop UI for Windows, macOS, and Linux
-- keeps the existing vault format, encryption flow, and local storage model unchanged
-- runs both the desktop UI and the CLI through the same backend service
-- supports only `v4` vault metadata and key-derivation
+`v2.0.1`
 
-`v1.1.1`
-
-- removes legacy `v2` and `v3` vault logic
-- supports only `v4` vault metadata and key-derivation
+- adds bulk insert support in both the desktop UI and the CLI
 
 Important Disclaimer
 --------------------
@@ -77,12 +71,14 @@ Features & Functionality
       `https://github.com/abhishekraha/SimpleCredentialManager`.
 
 6) Desktop UI
-    - `v2.0.0` adds a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
+    - `v2.0.0` introduced a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
     - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, and lock.
+    - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options
     - Add Secret: interactively add a new secret.
+    - Bulk Insert Secrets: paste comma-separated rows into the CLI using the displayed header format.
     - View Secret: view details for a stored secret (requires master password).
     - Update Secret: modify an existing secret.
     - Delete Secret: remove a secret from the store.

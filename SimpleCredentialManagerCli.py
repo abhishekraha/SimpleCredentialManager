@@ -15,6 +15,7 @@ from dev.abhishekraha.secretmanager.utils.Utils import (
 )
 
 SERVICE = SecretManagerService(client_name="cli")
+BULK_INSERT_HEADER = "name,username,password,url,comments"
 
 
 def _print_recovery_instructions(error):
@@ -75,6 +76,38 @@ def _add_secret():
         print(exc)
         return
     print("Secret added successfully.")
+
+
+def _bulk_insert_secrets():
+    print("Bulk insert expects comma-separated values in this order:")
+    print(BULK_INSERT_HEADER)
+    print('Enter one row per line. Wrap values containing commas in double quotes.')
+    print("Press Enter on an empty line when finished.")
+
+    rows = []
+    while True:
+        row = input("> ")
+        if not row:
+            break
+        rows.append(row)
+
+    if not rows:
+        print("Bulk insert cancelled. No rows entered.")
+        return
+
+    first_row = rows[0].strip().lower()
+    payload = "\n".join(rows) if first_row == BULK_INSERT_HEADER else f"{BULK_INSERT_HEADER}\n" + "\n".join(rows)
+
+    try:
+        summary = SERVICE.bulk_insert_secrets(payload)
+    except Exception as exc:
+        print(exc)
+        return
+
+    print(
+        "Bulk insert completed: "
+        f"{summary['added']} secret(s) added, {summary['skipped_blank_rows']} blank row(s) skipped."
+    )
 
 
 def _view_secret():
@@ -213,50 +246,57 @@ def _exit_application():
 def _show_menu():
     print("\nMenu:")
     print("1. Add Secret")
-    print("2. View Secret")
-    print("3. Update Secret")
-    print("4. Delete Secret")
-    print("5. List All Secrets")
-    print("6. Export Secrets (CSV)")
-    print("7. Import Secrets (CSV)")
-    print("8. Exit")
+    print("2. Bulk Insert Secrets")
+    print("3. View Secret")
+    print("4. Update Secret")
+    print("5. Delete Secret")
+    print("6. List All Secrets")
+    print("7. Export Secrets (CSV)")
+    print("8. Import Secrets (CSV)")
+    print("9. Exit")
 
 
 def _get_menu():
     return {
         "1": _add_secret,
-        "2": _view_secret,
-        "3": _update_secret,
-        "4": _delete_secret,
-        "5": _list_secrets,
-        "6": _export_secrets,
-        "7": _import_secrets,
-        "8": _exit_application,
+        "2": _bulk_insert_secrets,
+        "3": _view_secret,
+        "4": _update_secret,
+        "5": _delete_secret,
+        "6": _list_secrets,
+        "7": _export_secrets,
+        "8": _import_secrets,
+        "9": _exit_application,
     }
 
 
-try:
-    if not SERVICE.initialize():
-        _initial_setup()
-    is_authenticated = _authenticate()
-except (FileNotFoundError, ValueError, RuntimeError) as exc:
-    print(f"Startup failed: {exc}")
-    _print_recovery_instructions(exc)
-    raise SystemExit(1)
+def main():
+    try:
+        if not SERVICE.initialize():
+            _initial_setup()
+        is_authenticated = _authenticate()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(f"Startup failed: {exc}")
+        _print_recovery_instructions(exc)
+        return 1
 
-if not is_authenticated:
-    raise SystemExit(0)
+    if not is_authenticated:
+        return 0
 
-while True:
-    _show_menu()
-    user_choice = input("Enter your choice: ")
-    func = _get_menu().get(user_choice)
+    while True:
+        _show_menu()
+        user_choice = input("Enter your choice: ")
+        func = _get_menu().get(user_choice)
 
-    if not func:
-        print("Invalid choice. Please try again.\n")
-        continue
+        if not func:
+            print("Invalid choice. Please try again.\n")
+            continue
 
-    handled_continue_prompt = func()
-    if not handled_continue_prompt:
-        input("Press Enter to continue...")
-    clear_screen()
+        handled_continue_prompt = func()
+        if not handled_continue_prompt:
+            input("Press Enter to continue...")
+        clear_screen()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
