@@ -10,9 +10,10 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-`v2.0.6`
+`v2.0.7`
 
-- [ BugFix ] Fixed bug in version check logic where cached release data was being used for the first 6 hours to save network cost.
+- [ Feature ] Added password generation while creating or editing a secret.
+- [ Feature ] Added encrypted backup export protected by its own backup password, with matching backup import support.
 
 Important Disclaimer
 --------------------
@@ -73,13 +74,14 @@ Features & Functionality
 
 6) Desktop UI
     - `v2.0.0` introduced a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
-    - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, and lock.
+    - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, encrypted backup export, and lock.
     - In the details view, clicking the username copies it to the clipboard and clicking the password copies the password.
     - Clicking the stored URL opens it in the default browser.
     - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
     - `v2.0.2` adds click-to-copy for usernames and click-to-open behavior for stored URLs.
     - `v2.0.3` automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity.
     - `v2.0.4` adds GitHub release update awareness, including startup checks, a clickable update prompt, and footer version coloring for update and stale-release states.
+    - `v2.0.7` adds a Generate button for secret passwords and encrypted backup export/import support protected by a separate backup password.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options
@@ -90,9 +92,11 @@ Features & Functionality
     - Update Secret: modify an existing secret.
     - Delete Secret: remove a secret from the store.
     - List All Secrets: display a list of stored secret names.
+    - Generated passwords: the CLI can generate a random password for a new or updated secret instead of requiring manual entry.
     - Export to CSV: export stored entries to a CSV file (to a default app location by default); prompts before
       overwriting an existing file and allows you to choose a different name/location.
-    - Import from CSV: import entries from a CSV file; prompts before overwriting existing entries or files and lets you
+    - Export encrypted backup: export stored entries into an encrypted backup file protected by its own backup password.
+    - Import from CSV or encrypted backup: import entries from a CSV file or a password-protected backup; prompts before overwriting existing entries or files and lets you
       select the import file.
     - Exit: quit the CLI.
 

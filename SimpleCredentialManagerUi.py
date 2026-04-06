@@ -14,7 +14,9 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_REPOSITORY_URL,
     APP_VERSION,
     BUG_REPORT_URL,
+    DEFAULT_ENCRYPTED_BACKUP,
     DEFAULT_EXPORT_CSV,
+    ENCRYPTED_BACKUP_FILE_EXTENSION,
     SESSION_IDLE_LOCK_SECONDS,
 )
 from dev.abhishekraha.secretmanager.core.ReleaseUpdateService import (
@@ -27,9 +29,10 @@ from dev.abhishekraha.secretmanager.utils.Utils import copy_to_clipboard
 
 
 class SecretEditorDialog(tk.Toplevel):
-    def __init__(self, master, title, secret=None):
+    def __init__(self, master, title, secret=None, password_factory=None):
         super().__init__(master)
         self.result = None
+        self.password_factory = password_factory
         self.title(title)
         self.transient(master)
         self.resizable(False, False)
@@ -52,8 +55,14 @@ class SecretEditorDialog(tk.Toplevel):
         )
 
         ttk.Label(self, text="Password").grid(row=2, column=0, padx=16, pady=8, sticky="w")
-        self.password_entry = ttk.Entry(self, textvariable=self.password_var, width=44, show="*")
-        self.password_entry.grid(row=2, column=1, padx=(0, 16), pady=8, sticky="ew")
+        password_frame = ttk.Frame(self)
+        password_frame.grid(row=2, column=1, padx=(0, 16), pady=8, sticky="ew")
+        password_frame.columnconfigure(0, weight=1)
+        self.password_entry = ttk.Entry(password_frame, textvariable=self.password_var, width=44, show="*")
+        self.password_entry.grid(row=0, column=0, sticky="ew")
+        ttk.Button(password_frame, text="Generate", command=self._generate_password).grid(
+            row=0, column=1, padx=(8, 0)
+        )
         ttk.Checkbutton(
             self,
             text="Show password",
@@ -84,6 +93,13 @@ class SecretEditorDialog(tk.Toplevel):
 
     def _toggle_password_visibility(self):
         self.password_entry.configure(show="" if self.show_password_var.get() else "*")
+
+    def _generate_password(self):
+        if self.password_factory is None:
+            return
+        self.password_var.set(self.password_factory())
+        self.show_password_var.set(True)
+        self._toggle_password_visibility()
 
     def _save(self):
         self.result = {
@@ -194,6 +210,96 @@ class MasterPasswordDialog(tk.Toplevel):
             "new_password": self.new_password_var.get(),
             "confirm_password": self.confirm_password_var.get(),
         }
+        self.destroy()
+
+
+class BackupPasswordDialog(tk.Toplevel):
+    def __init__(self, master, title, action_label, require_confirmation, allow_generate):
+        super().__init__(master)
+        self.result = None
+        self.require_confirmation = require_confirmation
+        self.password_factory = master.service.generate_password if allow_generate else None
+        self.title(title)
+        self.transient(master)
+        self.resizable(False, False)
+        self.columnconfigure(1, weight=1)
+
+        self.password_var = tk.StringVar(value="")
+        self.confirm_password_var = tk.StringVar(value="")
+        self.show_password_var = tk.BooleanVar(value=False)
+
+        ttk.Label(
+            self,
+            text="This password protects the exported backup separately from your vault password.",
+            wraplength=420,
+        ).grid(row=0, column=0, columnspan=3, padx=16, pady=(16, 8), sticky="w")
+        ttk.Label(self, text="Backup password").grid(row=1, column=0, padx=16, pady=8, sticky="w")
+        password_frame = ttk.Frame(self)
+        password_frame.grid(row=1, column=1, columnspan=2, padx=(0, 16), pady=8, sticky="ew")
+        password_frame.columnconfigure(0, weight=1)
+        self.password_entry = ttk.Entry(password_frame, textvariable=self.password_var, width=44, show="*")
+        self.password_entry.grid(row=0, column=0, sticky="ew")
+        if allow_generate:
+            ttk.Button(password_frame, text="Generate", command=self._generate_password).grid(
+                row=0, column=1, padx=(8, 0)
+            )
+
+        row_index = 2
+        if require_confirmation:
+            ttk.Label(self, text="Confirm backup password").grid(row=row_index, column=0, padx=16, pady=8, sticky="w")
+            self.confirm_password_entry = ttk.Entry(
+                self,
+                textvariable=self.confirm_password_var,
+                width=44,
+                show="*",
+            )
+            self.confirm_password_entry.grid(row=row_index, column=1, columnspan=2, padx=(0, 16), pady=8, sticky="ew")
+            row_index += 1
+        else:
+            self.confirm_password_entry = None
+
+        ttk.Checkbutton(
+            self,
+            text="Show password",
+            variable=self.show_password_var,
+            command=self._toggle_password_visibility,
+        ).grid(row=row_index, column=1, columnspan=2, padx=(0, 16), pady=(0, 8), sticky="w")
+        row_index += 1
+
+        action_frame = ttk.Frame(self)
+        action_frame.grid(row=row_index, column=0, columnspan=3, padx=16, pady=(8, 16), sticky="e")
+        ttk.Button(action_frame, text="Cancel", command=self.destroy).pack(side="right")
+        ttk.Button(action_frame, text=action_label, command=self._save).pack(side="right", padx=(0, 8))
+
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.grab_set()
+        self.password_entry.focus_set()
+
+    def _toggle_password_visibility(self):
+        show_char = "" if self.show_password_var.get() else "*"
+        self.password_entry.configure(show=show_char)
+        if self.confirm_password_entry is not None:
+            self.confirm_password_entry.configure(show=show_char)
+
+    def _generate_password(self):
+        if self.password_factory is None:
+            return
+        generated_password = self.password_factory()
+        self.password_var.set(generated_password)
+        self.confirm_password_var.set(generated_password)
+        self.show_password_var.set(True)
+        self._toggle_password_visibility()
+
+    def _save(self):
+        password = self.password_var.get()
+        if not password:
+            messagebox.showerror(self.title(), "Backup password cannot be empty.", parent=self)
+            return
+        if self.require_confirmation and password != self.confirm_password_var.get():
+            messagebox.showerror(self.title(), "Backup password and confirmation do not match.", parent=self)
+            return
+        self.result = {"password": password}
         self.destroy()
 
 
@@ -420,8 +526,9 @@ class SimpleCredentialManagerUi(tk.Tk):
             ("Bulk Insert", self._bulk_insert_secrets),
             ("Edit", self._edit_selected_secret),
             ("Delete", self._delete_selected_secret),
-            ("Import CSV", self._import_secrets),
+            ("Import CSV / Backup", self._import_secrets),
             ("Export CSV", self._export_secrets),
+            ("Export Backup", self._export_encrypted_backup),
             ("Change Master Password", self._change_master_password),
         ]:
             ttk.Button(toolbar, text=label, command=command).pack(side="left", padx=(0, 8))
@@ -592,7 +699,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.comments_text.configure(state="disabled")
 
     def _add_secret(self):
-        dialog = SecretEditorDialog(self, "Add secret")
+        dialog = SecretEditorDialog(self, "Add secret", password_factory=self.service.generate_password)
         self.wait_window(dialog)
         if not dialog.result:
             return
@@ -626,7 +733,12 @@ class SimpleCredentialManagerUi(tk.Tk):
         secret = self._require_selected_secret()
         if not secret:
             return
-        dialog = SecretEditorDialog(self, "Edit secret", secret=secret)
+        dialog = SecretEditorDialog(
+            self,
+            "Edit secret",
+            secret=secret,
+            password_factory=self.service.generate_password,
+        )
         self.wait_window(dialog)
         if not dialog.result:
             return
@@ -721,9 +833,14 @@ class SimpleCredentialManagerUi(tk.Tk):
 
     def _import_secrets(self):
         source = filedialog.askopenfilename(
-            title="Import secrets from CSV",
+            title="Import secrets from CSV or encrypted backup",
             initialdir=str(DEFAULT_EXPORT_CSV.parent),
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            filetypes=[
+                ("Supported files", "*.csv *.scmbackup"),
+                ("CSV files", "*.csv"),
+                ("Encrypted backups", "*.scmbackup"),
+                ("All files", "*.*"),
+            ],
         )
         if not source:
             return
@@ -736,7 +853,25 @@ class SimpleCredentialManagerUi(tk.Tk):
             return
         strategy = "overwrite" if choice else "skip"
         try:
-            summary = self.service.import_secrets(source, conflict_strategy=strategy)
+            import_format = self.service.detect_import_format(source)
+            if import_format == "encrypted_backup":
+                password_dialog = BackupPasswordDialog(
+                    self,
+                    "Import encrypted backup",
+                    action_label="Import",
+                    require_confirmation=False,
+                    allow_generate=False,
+                )
+                self.wait_window(password_dialog)
+                if not password_dialog.result:
+                    return
+                summary = self.service.import_encrypted_backup(
+                    source,
+                    password_dialog.result["password"],
+                    conflict_strategy=strategy,
+                )
+            else:
+                summary = self.service.import_secrets(source, conflict_strategy=strategy)
         except Exception as exc:
             messagebox.showerror("Import failed", str(exc), parent=self)
             return
@@ -767,6 +902,42 @@ class SimpleCredentialManagerUi(tk.Tk):
             messagebox.showerror("Export failed", str(exc), parent=self)
             return
         self.status_var.set(f"Exported secrets to {target}.")
+
+    def _export_encrypted_backup(self):
+        target = filedialog.asksaveasfilename(
+            title="Export encrypted backup",
+            initialdir=str(DEFAULT_ENCRYPTED_BACKUP.parent),
+            initialfile=DEFAULT_ENCRYPTED_BACKUP.name,
+            defaultextension=ENCRYPTED_BACKUP_FILE_EXTENSION,
+            filetypes=[
+                ("Encrypted backups", f"*{ENCRYPTED_BACKUP_FILE_EXTENSION}"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not target:
+            return
+
+        password_dialog = BackupPasswordDialog(
+            self,
+            "Export encrypted backup",
+            action_label="Export",
+            require_confirmation=True,
+            allow_generate=True,
+        )
+        self.wait_window(password_dialog)
+        if not password_dialog.result:
+            return
+
+        try:
+            self.service.export_encrypted_backup(
+                Path(target),
+                password_dialog.result["password"],
+                overwrite=True,
+            )
+        except Exception as exc:
+            messagebox.showerror("Backup export failed", str(exc), parent=self)
+            return
+        self.status_var.set(f"Exported encrypted backup to {target}.")
 
     def _change_master_password(self):
         dialog = MasterPasswordDialog(self)

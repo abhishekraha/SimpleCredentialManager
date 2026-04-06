@@ -1,14 +1,21 @@
 import csv
 import io
+import json
+import string
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime
 from pathlib import Path
+from random import SystemRandom
+from secrets import choice, token_bytes
 
 from dev.abhishekraha.secretmanager.codec import CodecUtils, SerDeUtils
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     APP_CONFIG_DIR,
     APP_HOME_DIR,
     BUG_REPORT_URL,
+    DEFAULT_ENCRYPTED_BACKUP,
     DEFAULT_EXPORT_CSV,
+    ENCRYPTED_BACKUP_FILE_EXTENSION,
     SECRET_FILE,
     SECRET_MANAGER_META_DATA,
 )
@@ -17,6 +24,13 @@ from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import (
     SecretManagerMetaDataManager,
 )
 from dev.abhishekraha.secretmanager.utils.AuditLogger import audit_action
+
+
+PASSWORD_GENERATION_LENGTH = 20
+PASSWORD_GENERATION_SYMBOLS = "!@#$%^&*()-_=+[]{}"
+ENCRYPTED_BACKUP_FORMAT = "simple-credential-manager-encrypted-backup"
+ENCRYPTED_BACKUP_VERSION = 1
+EXPECTED_IMPORT_HEADERS = ["name", "username", "password", "url", "comments", "created_at", "updated_at"]
 
 
 class SecretManagerService:
@@ -218,6 +232,33 @@ class SecretManagerService:
     def get_secret_names(self, filter_text=""):
         return [secret.get_name() for secret in self.get_secret_records(filter_text)]
 
+    def generate_password(self, length=PASSWORD_GENERATION_LENGTH):
+        if length < 4:
+            raise ValueError("Generated passwords must be at least 4 characters long.")
+        character_groups = [
+            string.ascii_lowercase,
+            string.ascii_uppercase,
+            string.digits,
+            PASSWORD_GENERATION_SYMBOLS,
+        ]
+        generated_characters = [choice(group) for group in character_groups]
+        all_characters = "".join(character_groups)
+        generated_characters.extend(choice(all_characters) for _ in range(length - len(generated_characters)))
+        SystemRandom().shuffle(generated_characters)
+        return "".join(generated_characters)
+
+    def detect_import_format(self, source_path):
+        source = Path(source_path)
+        if not source.exists():
+            raise FileNotFoundError(f"Import file not found: {source}")
+        if source.suffix.lower() == ENCRYPTED_BACKUP_FILE_EXTENSION:
+            return "encrypted_backup"
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return "csv"
+        return "encrypted_backup" if payload.get("format") == ENCRYPTED_BACKUP_FORMAT else "csv"
+
     def add_secret(self, name, username, password, url="", comments=""):
         self._require_unlocked()
         name = (name or "").strip()
@@ -378,7 +419,7 @@ class SecretManagerService:
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(["name", "username", "password", "url", "comments", "created_at", "updated_at"])
+            writer.writerow(EXPECTED_IMPORT_HEADERS)
             for secret in self.get_secret_records():
                 writer.writerow(
                     [
@@ -394,89 +435,79 @@ class SecretManagerService:
         self._audit("secrets_exported", target_path=target, secret_count=len(self._secrets))
         return target
 
+    def export_encrypted_backup(self, target_path=DEFAULT_ENCRYPTED_BACKUP, backup_password="", overwrite=False):
+        self._require_unlocked()
+        if not backup_password:
+            self._audit("encrypted_backup_export_failed", status="failed", reason="empty_backup_password")
+            raise ValueError("Backup password cannot be empty.")
+
+        target = Path(target_path)
+        if target.exists() and not overwrite:
+            self._audit("encrypted_backup_export_failed", status="failed", reason="target_exists", target_path=target)
+            raise FileExistsError(f"Target file '{target}' already exists.")
+
+        backup_bytes = self._build_encrypted_backup_bytes(backup_password)
+        SerDeUtils.dump_bytes(backup_bytes, target)
+        self._audit("encrypted_backup_exported", target_path=target, secret_count=len(self._secrets))
+        return target
+
     def import_secrets(self, source_path, conflict_strategy="skip", rename_resolver=None):
         self._require_unlocked()
         source = Path(source_path)
         if not source.exists():
             self._audit("secrets_import_failed", status="failed", reason="source_missing", source_path=source)
             raise FileNotFoundError(f"Import file not found: {source}")
-        if conflict_strategy not in {"skip", "overwrite", "rename"}:
-            self._audit(
-                "secrets_import_failed",
-                status="failed",
-                reason="unsupported_conflict_strategy",
-                conflict_strategy=conflict_strategy,
-            )
-            raise ValueError("Unsupported conflict strategy.")
-        if conflict_strategy == "rename" and rename_resolver is None:
-            self._audit(
-                "secrets_import_failed",
-                status="failed",
-                reason="missing_rename_resolver",
-            )
-            raise ValueError("A rename resolver is required for rename conflict strategy.")
-
-        imported = 0
-        overwritten = 0
-        renamed = 0
-        skipped = 0
-        changes_made = False
+        try:
+            self._validate_import_options(conflict_strategy, rename_resolver)
+        except ValueError as exc:
+            self._audit("secrets_import_failed", status="failed", reason=str(exc), source_path=source)
+            raise
         with open(source, "r", newline="", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
-            expected = ["name", "username", "password", "url", "comments", "created_at", "updated_at"]
-            if not reader.fieldnames or not all(column in reader.fieldnames for column in expected):
+            if not reader.fieldnames or not all(column in reader.fieldnames for column in EXPECTED_IMPORT_HEADERS):
                 self._audit("secrets_import_failed", status="failed", reason="invalid_csv_header", source_path=source)
-                raise ValueError("CSV format invalid. Expected header: " + ",".join(expected))
-
-            for row in reader:
-                name = (row.get("name") or "").strip()
-                if not name:
-                    skipped += 1
-                    continue
-                if name in self._secrets:
-                    if conflict_strategy == "skip":
-                        skipped += 1
-                        continue
-                    if conflict_strategy == "rename":
-                        original_name = name
-                        name = (rename_resolver(name) or "").strip()
-                        if not name:
-                            skipped += 1
-                            continue
-                        if name == original_name:
-                            overwritten += 1
-                        elif name in self._secrets:
-                            raise ValueError(
-                                "Rename conflict resolution must return a unique, non-empty name."
-                            )
-                        else:
-                            renamed += 1
-                    else:
-                        overwritten += 1
-                else:
-                    imported += 1
-                self._secrets[name] = Secret(
-                    name,
-                    row.get("username", ""),
-                    row.get("password", ""),
-                    row.get("url", ""),
-                    row.get("comments", ""),
-                    create_date=_parse_datetime(row.get("created_at")) or datetime.now(),
-                    update_date=_parse_datetime(row.get("updated_at")),
-                )
-                changes_made = True
-
-        if changes_made:
-            self._persist_secrets()
-        summary = {
-            "imported": imported,
-            "overwritten": overwritten,
-            "renamed": renamed,
-            "skipped": skipped,
-            "changes_made": changes_made,
-        }
+                raise ValueError("CSV format invalid. Expected header: " + ",".join(EXPECTED_IMPORT_HEADERS))
+            summary = self._apply_import_records(reader, conflict_strategy, rename_resolver)
         self._audit(
             "secrets_imported",
+            source_path=source,
+            conflict_strategy=conflict_strategy,
+            **summary,
+        )
+        return summary
+
+    def import_encrypted_backup(self, source_path, backup_password, conflict_strategy="skip", rename_resolver=None):
+        self._require_unlocked()
+        source = Path(source_path)
+        if not source.exists():
+            self._audit("encrypted_backup_import_failed", status="failed", reason="source_missing", source_path=source)
+            raise FileNotFoundError(f"Import file not found: {source}")
+        if not backup_password:
+            self._audit("encrypted_backup_import_failed", status="failed", reason="empty_backup_password")
+            raise ValueError("Backup password cannot be empty.")
+        try:
+            self._validate_import_options(conflict_strategy, rename_resolver)
+        except ValueError as exc:
+            self._audit("encrypted_backup_import_failed", status="failed", reason=str(exc), source_path=source)
+            raise
+
+        try:
+            decrypted_payload = self._decrypt_encrypted_backup(source, backup_password)
+            records = decrypted_payload.get("secrets")
+            if not isinstance(records, list):
+                raise ValueError("Encrypted backup file is missing secret records.")
+            summary = self._apply_import_records(records, conflict_strategy, rename_resolver)
+        except ValueError as exc:
+            self._audit(
+                "encrypted_backup_import_failed",
+                status="failed",
+                reason=type(exc).__name__,
+                source_path=source,
+            )
+            raise
+
+        self._audit(
+            "encrypted_backup_imported",
             source_path=source,
             conflict_strategy=conflict_strategy,
             **summary,
@@ -528,6 +559,121 @@ class SecretManagerService:
         instructions.append("Run the app again and create a new master password.")
         instructions.append("Re-enter your secrets manually, because no importable backup was found.")
         return instructions
+
+    def _apply_import_records(self, records, conflict_strategy, rename_resolver):
+        imported = 0
+        overwritten = 0
+        renamed = 0
+        skipped = 0
+        changes_made = False
+
+        for row in records:
+            name = (row.get("name") or "").strip()
+            if not name:
+                skipped += 1
+                continue
+            if name in self._secrets:
+                if conflict_strategy == "skip":
+                    skipped += 1
+                    continue
+                if conflict_strategy == "rename":
+                    original_name = name
+                    name = (rename_resolver(name) or "").strip()
+                    if not name:
+                        skipped += 1
+                        continue
+                    if name == original_name:
+                        overwritten += 1
+                    elif name in self._secrets:
+                        raise ValueError("Rename conflict resolution must return a unique, non-empty name.")
+                    else:
+                        renamed += 1
+                else:
+                    overwritten += 1
+            else:
+                imported += 1
+
+            self._secrets[name] = Secret(
+                name,
+                row.get("username", ""),
+                row.get("password", ""),
+                row.get("url", ""),
+                row.get("comments", ""),
+                create_date=_parse_datetime(row.get("created_at")) or datetime.now(),
+                update_date=_parse_datetime(row.get("updated_at")),
+            )
+            changes_made = True
+
+        if changes_made:
+            self._persist_secrets()
+
+        return {
+            "imported": imported,
+            "overwritten": overwritten,
+            "renamed": renamed,
+            "skipped": skipped,
+            "changes_made": changes_made,
+        }
+
+    def _build_encrypted_backup_bytes(self, backup_password):
+        backup_salt = token_bytes(16)
+        backup_key = CodecUtils.build_vault_key(backup_password, backup_salt)
+        secret_records = [secret.to_dict() for secret in self.get_secret_records()]
+        plaintext_payload = json.dumps(
+            {
+                "secrets": secret_records,
+                "exported_at": datetime.now().isoformat(),
+            }
+        ).encode("utf-8")
+        encrypted_payload = CodecUtils.encrypt_with_key(plaintext_payload, backup_key, is_file=True)
+        backup_wrapper = {
+            "format": ENCRYPTED_BACKUP_FORMAT,
+            "version": ENCRYPTED_BACKUP_VERSION,
+            "created_at": datetime.now().isoformat(),
+            "salt": urlsafe_b64encode(backup_salt).decode("ascii"),
+            "ciphertext": encrypted_payload.decode("ascii"),
+        }
+        return json.dumps(backup_wrapper, indent=2).encode("utf-8")
+
+    def _decrypt_encrypted_backup(self, source, backup_password):
+        backup_wrapper = self._load_backup_container(source)
+        try:
+            backup_salt = urlsafe_b64decode(backup_wrapper["salt"].encode("ascii"))
+        except Exception as exc:
+            raise ValueError("Encrypted backup file is unreadable or corrupt.") from exc
+
+        try:
+            backup_key = CodecUtils.build_vault_key(backup_password, backup_salt)
+            decrypted_bytes = CodecUtils.decrypt_with_key(
+                backup_wrapper["ciphertext"].encode("ascii"),
+                backup_key,
+                is_file=True,
+            )
+            return json.loads(decrypted_bytes.decode("utf-8"))
+        except ValueError as exc:
+            if str(exc) == "Unable to decrypt data with the supplied password.":
+                raise ValueError("Backup password is invalid or the encrypted backup file is corrupt.") from exc
+            raise ValueError("Encrypted backup file is unreadable or corrupt.") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Encrypted backup file is unreadable or corrupt.") from exc
+
+    def _load_backup_container(self, source):
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Encrypted backup file is unreadable or corrupt.") from exc
+
+        if payload.get("format") != ENCRYPTED_BACKUP_FORMAT or payload.get("version") != ENCRYPTED_BACKUP_VERSION:
+            raise ValueError("Encrypted backup file is unreadable or corrupt.")
+        if not payload.get("salt") or not payload.get("ciphertext"):
+            raise ValueError("Encrypted backup file is unreadable or corrupt.")
+        return payload
+
+    def _validate_import_options(self, conflict_strategy, rename_resolver):
+        if conflict_strategy not in {"skip", "overwrite", "rename"}:
+            raise ValueError("Unsupported conflict strategy.")
+        if conflict_strategy == "rename" and rename_resolver is None:
+            raise ValueError("A rename resolver is required for rename conflict strategy.")
 
     def _load_secrets(self):
         if not SECRET_FILE.exists():

@@ -116,6 +116,77 @@ class SecureStorageTests(unittest.TestCase):
         self.assertEqual("p4ss", service._secrets["email"].get_password())
         mocked_persist.assert_called_once()
 
+    def test_generate_password_contains_mixed_character_groups(self):
+        service = SecretManagerService(client_name="test")
+
+        generated_password = service.generate_password(length=24)
+
+        self.assertEqual(24, len(generated_password))
+        self.assertTrue(any(character.islower() for character in generated_password))
+        self.assertTrue(any(character.isupper() for character in generated_password))
+        self.assertTrue(any(character.isdigit() for character in generated_password))
+        self.assertTrue(any(not character.isalnum() for character in generated_password))
+
+    def test_encrypted_backup_round_trips_without_plaintext_leak(self):
+        with TemporaryDirectory() as temp_dir:
+            backup_file = Path(temp_dir) / "secrets_backup.scmbackup"
+
+            export_service = SecretManagerService(client_name="test")
+            export_service._secrets = {
+                "email": Secret("email", "alice", "s3cr3t!", "https://example.com", "primary mailbox")
+            }
+
+            with patch.object(export_service, "is_unlocked", return_value=True):
+                with patch.object(export_service, "_audit"):
+                    export_service.export_encrypted_backup(backup_file, "backup-passphrase", overwrite=True)
+
+            backup_bytes = backup_file.read_bytes()
+            self.assertNotIn(b"alice", backup_bytes)
+            self.assertNotIn(b"s3cr3t!", backup_bytes)
+            self.assertEqual("encrypted_backup", export_service.detect_import_format(backup_file))
+
+            import_service = SecretManagerService(client_name="test")
+            with patch.object(import_service, "is_unlocked", return_value=True):
+                with patch.object(import_service, "_persist_secrets") as mocked_persist:
+                    with patch.object(import_service, "_audit"):
+                        summary = import_service.import_encrypted_backup(backup_file, "backup-passphrase")
+
+            self.assertEqual(
+                {
+                    "imported": 1,
+                    "overwritten": 0,
+                    "renamed": 0,
+                    "skipped": 0,
+                    "changes_made": True,
+                },
+                summary,
+            )
+            self.assertEqual("alice", import_service._secrets["email"].get_username())
+            self.assertEqual("s3cr3t!", import_service._secrets["email"].get_password())
+            mocked_persist.assert_called_once()
+
+    def test_encrypted_backup_rejects_wrong_password(self):
+        with TemporaryDirectory() as temp_dir:
+            backup_file = Path(temp_dir) / "secrets_backup.scmbackup"
+
+            export_service = SecretManagerService(client_name="test")
+            export_service._secrets = {
+                "email": Secret("email", "alice", "s3cr3t!", "https://example.com", "primary mailbox")
+            }
+
+            with patch.object(export_service, "is_unlocked", return_value=True):
+                with patch.object(export_service, "_audit"):
+                    export_service.export_encrypted_backup(backup_file, "backup-passphrase", overwrite=True)
+
+            import_service = SecretManagerService(client_name="test")
+            with patch.object(import_service, "is_unlocked", return_value=True):
+                with patch.object(import_service, "_audit"):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "Backup password is invalid or the encrypted backup file is corrupt.",
+                    ):
+                        import_service.import_encrypted_backup(backup_file, "wrong-passphrase")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,11 @@ def derive_key(master_password, salt):
     return vault_key
 
 
+def build_vault_key(master_password, salt):
+    _, vault_key = _build_session_material(master_password, salt)
+    return vault_key
+
+
 def build_password_verifier(master_password, salt):
     password_verifier, _ = _build_session_material(master_password, salt)
     return password_verifier
@@ -76,10 +81,26 @@ def encrypt(plaintext, is_file=False):
     return encoder.encrypt(plaintext)
 
 
+def encrypt_with_key(plaintext, key, is_file=False):
+    if not isinstance(plaintext, bytes):
+        plaintext = plaintext.encode("utf-8")
+    encoder = Fernet(key)
+    return encoder.encrypt(plaintext)
+
+
 def decrypt(token, is_file=False):
     decoder = Fernet(get_derived_key())
     try:
         plaintext = decoder.decrypt(token)
     except InvalidToken as exc:
         raise ValueError("Unable to decrypt data with the current master password.") from exc
+    return plaintext if is_file else plaintext.decode("utf-8")
+
+
+def decrypt_with_key(token, key, is_file=False):
+    decoder = Fernet(key)
+    try:
+        plaintext = decoder.decrypt(token)
+    except InvalidToken as exc:
+        raise ValueError("Unable to decrypt data with the supplied password.") from exc
     return plaintext if is_file else plaintext.decode("utf-8")

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     CLI_RELEASE_WARNING_SECONDS,
+    DEFAULT_ENCRYPTED_BACKUP,
     DEFAULT_EXPORT_CSV,
     HEADER,
     SESSION_IDLE_LOCK_SECONDS,
@@ -84,12 +85,53 @@ def _authenticate():
             return False
 
 
+def _prompt_for_new_secret_password():
+    choice = _session_input("Press Enter to type a password or type 'g' to generate one: ").strip().lower()
+    if choice == "g":
+        generated_password = SERVICE.generate_password()
+        print(f"Generated password: {generated_password}")
+        return generated_password
+    return _session_secure_input("Enter password: ")
+
+
+def _prompt_for_updated_secret_password(current_password):
+    choice = _session_input(
+        "Press Enter to keep the current password, type 't' to enter a new one, or 'g' to generate one: "
+    ).strip().lower()
+    if not choice:
+        return current_password
+    if choice == "g":
+        generated_password = SERVICE.generate_password()
+        print(f"Generated password: {generated_password}")
+        return generated_password
+    return _session_secure_input("Enter new password: ") or current_password
+
+
+def _prompt_for_backup_password():
+    choice = _session_input("Press Enter to type a backup password or type 'g' to generate one: ").strip().lower()
+    if choice == "g":
+        generated_password = SERVICE.generate_password()
+        print(f"Generated backup password: {generated_password}")
+        _session_input("Press Enter after you have saved the backup password.")
+        return generated_password
+
+    backup_password = _session_secure_input("Enter backup password: ")
+    confirm_password = _session_secure_input("Confirm backup password: ")
+    if not backup_password:
+        print("Backup password cannot be empty.")
+        return None
+    if backup_password != confirm_password:
+        print("Backup password and confirmation do not match.")
+        return None
+    return backup_password
+
+
 def _add_secret():
     try:
         SERVICE.add_secret(
             _session_input("Enter a name for the secret: ").strip(),
             _session_input("Enter username: "),
-            _session_secure_input("Enter password: "),
+            _prompt_for_new_secret_password(),
             _session_input("Enter URL (optional): "),
             _session_input("Enter comments (optional): "),
         )
@@ -164,7 +206,7 @@ def _update_secret():
             secret.get_name(),
             _session_input(f"Enter new name (current: {secret.get_name()}): ") or secret.get_name(),
             _session_input(f"Enter new username (current: {secret.get_username()}): ") or secret.get_username(),
-            _session_secure_input("Enter new password (leave blank to keep unchanged): ") or secret.get_password(),
+            _prompt_for_updated_secret_password(secret.get_password()),
             _session_input(f"Enter new URL (current: {secret.get_url()}): ") or secret.get_url(),
             _session_input(f"Enter new comments (current: {secret.get_comments()}): ") or secret.get_comments(),
         )
@@ -227,8 +269,42 @@ def _export_secrets():
     print(f"Export completed: {target}")
 
 
+def _export_encrypted_backup():
+    print(f"Default encrypted backup path: {DEFAULT_ENCRYPTED_BACKUP}")
+    user_path = _session_input("Press Enter to use default or enter an alternate path: ").strip()
+    target = Path(user_path) if user_path else DEFAULT_ENCRYPTED_BACKUP
+
+    while target.exists():
+        print(f"Target file '{target}' already exists.")
+        choice = _session_input("(o)verwrite, enter (n)ew path, or (c)ancel? [o/n/c]: ").strip().lower() or "c"
+        if choice == "o":
+            break
+        if choice == "n":
+            new_path = _session_input("Enter new backup path: ").strip()
+            if not new_path:
+                print("No path entered. Canceling backup export.")
+                return
+            target = Path(new_path)
+            continue
+        print("Backup export cancelled.")
+        return
+
+    backup_password = _prompt_for_backup_password()
+    if backup_password is None:
+        return
+
+    try:
+        SERVICE.export_encrypted_backup(target, backup_password, overwrite=True)
+    except Exception as exc:
+        print(f"Failed to export encrypted backup: {exc}")
+        return
+    print(f"Encrypted backup completed: {target}")
+
+
 def _import_secrets():
-    user_path = _session_input(f"Enter path to CSV to import (default: {DEFAULT_EXPORT_CSV}):").strip()
+    user_path = _session_input(
+        f"Enter path to CSV or encrypted backup to import (default: {DEFAULT_EXPORT_CSV}):"
+    ).strip()
     source = Path(user_path) if user_path else DEFAULT_EXPORT_CSV
 
     if not source.exists():
@@ -248,7 +324,17 @@ def _import_secrets():
         return new_name
 
     try:
-        summary = SERVICE.import_secrets(source, conflict_strategy="rename", rename_resolver=rename_resolver)
+        import_format = SERVICE.detect_import_format(source)
+        if import_format == "encrypted_backup":
+            backup_password = _session_secure_input("Enter backup password: ")
+            summary = SERVICE.import_encrypted_backup(
+                source,
+                backup_password,
+                conflict_strategy="rename",
+                rename_resolver=rename_resolver,
+            )
+        else:
+            summary = SERVICE.import_secrets(source, conflict_strategy="rename", rename_resolver=rename_resolver)
     except Exception as exc:
         print(f"Failed to import secrets: {exc}")
         return
@@ -288,9 +374,10 @@ def _show_menu():
     print("5. Delete Secret")
     print("6. List All Secrets")
     print("7. Export Secrets (CSV)")
-    print("8. Import Secrets (CSV)")
-    print("9. Change Master Password")
-    print("10. Exit")
+    print("8. Export Encrypted Backup")
+    print("9. Import Secrets (CSV / Encrypted Backup)")
+    print("10. Change Master Password")
+    print("11. Exit")
 
 
 def _get_menu():
@@ -302,9 +389,10 @@ def _get_menu():
         "5": _delete_secret,
         "6": _list_secrets,
         "7": _export_secrets,
-        "8": _import_secrets,
-        "9": _change_master_password,
-        "10": _exit_application,
+        "8": _export_encrypted_backup,
+        "9": _import_secrets,
+        "10": _change_master_password,
+        "11": _exit_application,
     }
 
 
