@@ -1,7 +1,7 @@
 from pathlib import Path
 
 APP_NAME = "Simple Credential Manager"
-APP_VERSION = "v2.0.6"
+APP_VERSION = "v2.0.7"
 APP_AUTHOR = "Abhishek Raha"
 APP_COPYRIGHT = f"© 2026 {APP_AUTHOR}. All rights reserved."
 APP_REPOSITORY_URL = "https://github.com/abhishekraha/SimpleCredentialManager"
@@ -13,6 +13,8 @@ SECRET_FILE = Path(f"{APP_HOME_DIR}/.simpleCredentialManager.secret")
 SECRET_MANAGER_META_DATA = Path(f"{APP_CONFIG_DIR}/.simpleCredentialManager.metadata")
 AUDIT_LOG_FILE = Path(f"{APP_CONFIG_DIR}/.simpleCredentialManager.audit.log")
 DEFAULT_EXPORT_CSV = Path.joinpath(APP_HOME_DIR, 'secrets_export.csv')
+ENCRYPTED_BACKUP_FILE_EXTENSION = ".scmbackup"
+DEFAULT_ENCRYPTED_BACKUP = Path.joinpath(APP_HOME_DIR, f"secrets_backup{ENCRYPTED_BACKUP_FILE_EXTENSION}")
 RELEASE_STATUS_CACHE_FILE = Path(f"{APP_CONFIG_DIR}/.simpleCredentialManager.release-status.json")
 
 FAILED_AUTH_LOCKOUT_THRESHOLD = 3

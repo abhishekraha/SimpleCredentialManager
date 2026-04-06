@@ -2,7 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
-## v2.-0.6 - 2026-03-30
+## v2.0.7 - 2026-04-06
+### Added
+- Added a password generator to the desktop add/edit secret dialog and the CLI secret entry flow.
+- Added encrypted backup export with a dedicated backup password, plus import support for those encrypted backup files.
+
+## v2.0.6 - 2026-03-30
 ### Changed
 - Fixed a bug in the version check logic where cached release data was being used for the first 6 hours to save network cost
 
