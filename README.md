@@ -10,9 +10,9 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-`v2.0.8`
+`v2.0.9`
 
-- [ Feature ] Added in-place upgrade installation from the desktop update prompt instead of redirecting to GitHub.
+- [ Feature ] Updated the release workflow to publish separate Windows, Linux, and macOS packages with only the shared app files and the launchers needed for each platform.
 
 Important Disclaimer
 --------------------
@@ -82,6 +82,7 @@ Features & Functionality
     - `v2.0.4` adds GitHub release update awareness, including startup checks, a clickable update prompt, and footer version coloring for update and stale-release states.
     - `v2.0.7` adds a Generate button for secret passwords and encrypted backup export/import support protected by a separate backup password.
     - `v2.0.8` lets the desktop update prompt download and install the latest tagged release in place, with a GitHub fallback if the automatic upgrade fails.
+    - `v2.0.9` lets the desktop update prompt download and install the latest tagged release in place, with a GitHub fallback if the automatic upgrade fails.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options
@@ -176,8 +177,14 @@ Release Packaging
 After a successful merge to `main` and a passing GitHub Actions test run, the repository automatically creates a GitHub
 release named `v<version number>`.
 
-That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
-from the release tag without maintaining a separate packaging script.
+That release now publishes platform-specific packages as release assets:
+
+- Windows: a ZIP archive with the shared application files and the `.bat` launchers.
+- Linux: a `.tar.gz` archive with the shared application files and the `.sh` launchers.
+- macOS: a `.tar.gz` archive with the shared application files and the `.sh` launchers.
+
+The generic GitHub source archives for the tag are still available automatically, but the platform packages are the
+preferred downloads for end users.
 
 The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
 validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
