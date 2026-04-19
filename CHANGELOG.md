@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.8 - 2026-04-19
+### Changed
+- Replaced the desktop upgrade prompt redirect with an in-place update flow that downloads and installs the latest tagged release into the current app directory.
+- Added a GitHub source archive fallback URL for updates and improved automatic upgrade error handling in the desktop UI.
+
 ## v2.0.7 - 2026-04-06
 ### Added
 - Added a password generator to the desktop add/edit secret dialog and the CLI secret entry flow.

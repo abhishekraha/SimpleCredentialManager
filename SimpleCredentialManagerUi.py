@@ -20,6 +20,7 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     SESSION_IDLE_LOCK_SECONDS,
 )
 from dev.abhishekraha.secretmanager.core.ReleaseUpdateService import (
+    ReleaseUpdateError,
     ReleaseUpdateService,
 )
 from dev.abhishekraha.secretmanager.core.SecretManagerService import (
@@ -322,6 +323,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.toast_popup = None
         self.release_status = {}
         self.release_prompt_shown = False
+        self.update_install_in_progress = False
 
         self.title(f"{APP_NAME} {APP_VERSION}")
         self.geometry("1160x760")
@@ -1053,12 +1055,12 @@ class SimpleCredentialManagerUi(tk.Tk):
             if messagebox.askyesno(
                 "Update available",
                 (
-                    f"{latest_version} is available on GitHub.\n\n"
-                    "Do you want to open the download page now?"
+                    f"{latest_version} is available.\n\n"
+                    "Do you want to download and install it now?"
                 ),
                 parent=self,
             ):
-                self._open_release_link(download_preferred=True)
+                self._start_update_install()
 
     def _open_release_link(self, _event=None, download_preferred=False):
         target_url = None
@@ -1067,6 +1069,67 @@ class SimpleCredentialManagerUi(tk.Tk):
         if not target_url:
             target_url = self.release_status.get("release_url") or APP_RELEASES_URL
         webbrowser.open_new_tab(target_url)
+
+    def _start_update_install(self):
+        if self.update_install_in_progress:
+            return
+        latest_version = self.release_status.get("latest_version_label") or "the latest version"
+        self.update_install_in_progress = True
+        self.status_var.set(f"Installing {latest_version}...")
+        threading.Thread(target=self._install_update, name="release-update-install").start()
+
+    def _install_update(self):
+        try:
+            result = self.release_update_service.install_update(self.release_status)
+        except ReleaseUpdateError as exc:
+            error_message = str(exc)
+            self._queue_ui_callback(
+                lambda error_message=error_message: self._handle_update_install_failure(error_message)
+            )
+            return
+        except Exception as exc:
+            error_message = str(exc)
+            self._queue_ui_callback(
+                lambda error_message=error_message: self._handle_update_install_failure(error_message)
+            )
+            return
+
+        self._queue_ui_callback(lambda: self._handle_update_install_success(result))
+
+    def _handle_update_install_success(self, result):
+        self.update_install_in_progress = False
+        latest_version = result.get("latest_version_label") or "the latest version"
+        self.release_status = dict(self.release_status, update_available=False)
+        self.version_label.configure(style="FooterVersion.TLabel")
+        self.status_var.set(f"Installed {latest_version}. Restart the app to use the updated version.")
+        messagebox.showinfo(
+            "Update installed",
+            (
+                f"{latest_version} has been installed in place.\n\n"
+                "Restart the application to start using the updated version."
+            ),
+            parent=self,
+        )
+
+    def _handle_update_install_failure(self, error_message):
+        self.update_install_in_progress = False
+        self.status_var.set("Automatic update failed.")
+        if messagebox.askyesno(
+            "Update failed",
+            (
+                "The application could not install the update automatically.\n\n"
+                f"{error_message}\n\n"
+                "Do you want to open the GitHub download page instead?"
+            ),
+            parent=self,
+        ):
+            self._open_release_link(download_preferred=True)
+
+    def _queue_ui_callback(self, callback):
+        try:
+            self.after(0, callback)
+        except tk.TclError:
+            return
 
     def _start_idle_monitoring(self):
         self.idle_monitoring_enabled = True
@@ -1141,6 +1204,13 @@ class SimpleCredentialManagerUi(tk.Tk):
         return "*" * (12 + randbelow(9))
 
     def _handle_close(self):
+        if self.update_install_in_progress:
+            messagebox.showinfo(
+                "Update in progress",
+                "Please wait for the automatic update to finish before closing the application.",
+                parent=self,
+            )
+            return
         self._stop_idle_monitoring()
         self.service.lock_vault()
         self.destroy()
