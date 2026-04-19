@@ -1,7 +1,7 @@
 from pathlib import Path
 
 APP_NAME = "Simple Credential Manager"
-APP_VERSION = "v2.0.7"
+APP_VERSION = "v2.0.8"
 APP_AUTHOR = "Abhishek Raha"
 APP_COPYRIGHT = f"© 2026 {APP_AUTHOR}. All rights reserved."
 APP_REPOSITORY_URL = "https://github.com/abhishekraha/SimpleCredentialManager"

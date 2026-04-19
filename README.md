@@ -10,10 +10,9 @@ Change Log
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-`v2.0.7`
+`v2.0.8`
 
-- [ Feature ] Added password generation while creating or editing a secret.
-- [ Feature ] Added encrypted backup export protected by its own backup password, with matching backup import support.
+- [ Feature ] Added in-place upgrade installation from the desktop update prompt instead of redirecting to GitHub.
 
 Important Disclaimer
 --------------------
@@ -82,6 +81,7 @@ Features & Functionality
     - `v2.0.3` automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity.
     - `v2.0.4` adds GitHub release update awareness, including startup checks, a clickable update prompt, and footer version coloring for update and stale-release states.
     - `v2.0.7` adds a Generate button for secret passwords and encrypted backup export/import support protected by a separate backup password.
+    - `v2.0.8` lets the desktop update prompt download and install the latest tagged release in place, with a GitHub fallback if the automatic upgrade fails.
     - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
 
 7) CLI menu options
