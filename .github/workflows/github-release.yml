@@ -54,31 +54,8 @@ jobs:
               github_output.write(f"version={version}\n")
               github_output.write(f"release_name={release_name}\n")
 
-      - name: Check whether release already exists
-        id: release_check
-        uses: actions/github-script@v8
-        env:
-          RELEASE_NAME: ${{ steps.version.outputs.release_name }}
-        with:
-          script: |
-            const tag = process.env.RELEASE_NAME;
-            try {
-              await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag,
-              });
-              core.setOutput("exists", "true");
-            } catch (error) {
-              if (error.status === 404) {
-                core.setOutput("exists", "false");
-                return;
-              }
-              throw error;
-            }
-
-      - name: Create GitHub release
-        if: steps.release_check.outputs.exists != 'true'
+      - name: Ensure GitHub release exists
+        id: release
         uses: actions/github-script@v8
         env:
           RELEASE_NAME: ${{ steps.version.outputs.release_name }}
@@ -87,22 +64,46 @@ jobs:
         with:
           script: |
             const tag = process.env.RELEASE_NAME;
-            await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tag,
-              target_commitish: process.env.TARGET_SHA,
-              name: tag,
-              generate_release_notes: true,
-              draft: false,
-              prerelease: false,
-              body: [
-                `Automated release for Simple Credential Manager ${process.env.APP_VERSION}.`,
-                "",
-                `GitHub automatically provides the source code ZIP archive for this tag.`,
-              ].join("\n"),
-            });
+            try {
+              const existingRelease = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+              core.setOutput("release_name", tag);
+              core.setOutput("release_id", String(existingRelease.data.id));
+              core.setOutput("created", "false");
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
 
-      - name: Skip existing release
-        if: steps.release_check.outputs.exists == 'true'
-        run: echo "Release already exists for ${{ steps.version.outputs.release_name }}."
+              const createdRelease = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                target_commitish: process.env.TARGET_SHA,
+                name: tag,
+                generate_release_notes: true,
+                draft: false,
+                prerelease: false,
+                body: [
+                  `Automated release for Simple Credential Manager ${process.env.APP_VERSION}.`,
+                  "",
+                  `Release assets include Windows, Linux, and macOS packages with the launcher files needed for each platform.`,
+                  `GitHub still provides generic source archives for the tag automatically.`,
+                ].join("\n"),
+              });
+
+              core.setOutput("release_name", tag);
+              core.setOutput("release_id", String(createdRelease.data.id));
+              core.setOutput("created", "true");
+            }
+
+      - name: Build platform release packages
+        run: python .github/scripts/build_release_packages.py --version "${{ steps.version.outputs.version }}"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.release.outputs.release_name }}" dist/* --clobber

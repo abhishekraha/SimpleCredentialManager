@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## v2.0.9 - 2026-04-19
+### Changed
+- Updated the release workflow to publish separate Windows, Linux, and macOS packages with only the shared app files and the launchers needed for each platform.
+
 ## v2.0.8 - 2026-04-19
 ### Changed
 - Replaced the desktop upgrade prompt redirect with an in-place update flow that downloads and installs the latest tagged release into the current app directory.
