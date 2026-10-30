@@ -129,6 +129,19 @@ class SecretManagerService:
                 CodecUtils.clear_derived_key()
                 self._audit("vault_unlock_failed", status="failed", reason="vault_file_unreadable")
                 return False, f"Vault file could not be opened: {exc}"
+
+            # Auto-migrate from legacy flat-file format to SQLite WAL format if needed
+            try:
+                from dev.abhishekraha.secretmanager.storage.StorageMigrator import StorageMigrator
+                migrator = StorageMigrator()
+                if migrator.is_migration_needed():
+                    mig_res = migrator.migrate(master_password)
+                    if mig_res.get("migrated"):
+                        self._audit("vault_auto_migrated_to_sqlite", count=mig_res.get("count", 0))
+            except Exception as mig_exc:
+                # Do not block authentication if migration encountered an issue; legacy vault remains unlocked
+                self._audit("vault_auto_migration_warning", status="warning", reason=str(mig_exc))
+
             if had_failed_attempts:
                 self._persist_metadata()
             self._audit("authentication_succeeded", prior_failures=had_failed_attempts)

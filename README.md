@@ -142,6 +142,7 @@ To compile standalone binaries without requiring Python on the target host:
 ## Documentation
 
 - [**Live GitHub Pages Site**](https://abhishekraha.github.io/SimpleCredentialManager/)
+- [**Migration Guide (v2.0.8 to v3.0.0)**](docs/MIGRATION_V2_TO_V3.md)
 - [**Architecture & Cryptography Deep Dive**](docs/ARCHITECTURE_DEEP_DIVE.md)
 - [**Security & Threat Model**](docs/ARCHITECTURE_DEEP_DIVE.md#threat-model--mitigations)
 - [**Change Log**](CHANGELOG.md)
