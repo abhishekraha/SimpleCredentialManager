@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Generates Windows Desktop and Start Menu shortcuts (.lnk) for Simple Credential Manager apps:
+    Generates Windows Desktop shortcuts (.lnk) for Simple Credential Manager UI apps:
     1. Simple Credential Manager (Full Workstation Window)
-    2. SCM Command Palette (Floating Quick Search)
-    3. SCM System Tray (Minimized Tray Daemon)
+    2. SCM UI - Command Palette (Floating Quick Search)
+    3. SCM UI - System Tray (Minimized Tray Daemon)
 #>
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -48,10 +48,10 @@ function Create-Shortcut {
     Write-Host "[+] Created Desktop Shortcut: $ShortcutName.lnk" -ForegroundColor Green
 }
 
-Write-Host "Creating Simple Credential Manager Desktop Shortcuts..." -ForegroundColor Cyan
-Create-Shortcut -ShortcutName "Simple Credential Manager" -Arguments "" -Description "Simple Credential Manager - Workstation Manager"
-Create-Shortcut -ShortcutName "SCM Command Palette" -Arguments "--palette" -Description "SCM Floating Command Palette (Quick Search)" -Hotkey "Ctrl+Alt+Space"
-Create-Shortcut -ShortcutName "SCM System Tray" -Arguments "--tray" -Description "SCM System Tray Daemon (Background)"
+Write-Host "Creating Simple Credential Manager UI Desktop Shortcuts..." -ForegroundColor Cyan
+Create-Shortcut -ShortcutName "Simple Credential Manager UI" -Arguments "" -Description "Simple Credential Manager UI - Workstation Manager"
+Create-Shortcut -ShortcutName "Simple Credential Manager UI - Command Palette" -Arguments "--palette" -Description "Simple Credential Manager UI - Floating Command Palette" -Hotkey "Ctrl+Alt+Space"
+Create-Shortcut -ShortcutName "Simple Credential Manager UI - System Tray" -Arguments "--tray" -Description "Simple Credential Manager UI - System Tray Daemon"
 
 Write-Host ""
-Write-Host "Done! Shortcuts placed on your Desktop." -ForegroundColor Green
+Write-Host "Done! UI Shortcuts placed on your Desktop." -ForegroundColor Green
