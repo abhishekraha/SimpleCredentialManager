@@ -226,6 +226,8 @@ jobs:
     needs: [resolve-tag, build-executables, build-linux-appimage]
     if: always() && !cancelled() && needs.resolve-tag.outputs.tag_name != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all built artifacts
         uses: actions/download-artifact@v4
@@ -239,10 +241,10 @@ jobs:
           find release-artifacts -type f -exec cp {} dist-assets/ \;
           ls -la dist-assets/
 
-      - name: Attach Binaries to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.resolve-tag.outputs.tag_name }}
-          files: dist-assets/*
+      - name: Attach Binaries to GitHub Release via GitHub CLI
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve-tag.outputs.tag_name }}
+        run: |
+          gh release upload "$TAG" dist-assets/* --clobber
