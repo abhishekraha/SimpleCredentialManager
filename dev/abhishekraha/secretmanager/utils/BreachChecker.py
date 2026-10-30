@@ -22,8 +22,11 @@ def check_password_breach(password, timeout=DEFAULT_TIMEOUT_SECONDS):
     if not password:
         return False, 0
 
-    # Calculate SHA-1 hash of the password
-    sha1_hex = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+    # Calculate SHA-1 hash of the password as required by HaveIBeenPwned Range API protocol.
+    # Note: CodeQL flagging this as weak hash is a false positive for storage, because this is NOT
+    # used for password storage or verification, but for HaveIBeenPwned's external k-anonymity protocol.
+    # usedforsecurity=False tells Python and linters this is not used as a security storage primitive.
+    sha1_hex = hashlib.new("sha1", password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()
     prefix = sha1_hex[:5]
     suffix = sha1_hex[5:]
 
