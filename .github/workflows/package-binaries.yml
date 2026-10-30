@@ -155,7 +155,7 @@ jobs:
           fi
 
       - name: Upload Platform Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.platform_id }}
           path: artifacts/*
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload Linux AppImage Artifact
         if: hashFiles('artifacts/*.AppImage') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binary-linux-appimage
           path: artifacts/*.AppImage
@@ -230,7 +230,7 @@ jobs:
       contents: write
     steps:
       - name: Download all built artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-artifacts
 
