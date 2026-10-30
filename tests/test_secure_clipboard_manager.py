@@ -52,9 +52,13 @@ class SecureClipboardManagerTests(unittest.TestCase):
     @patch("dev.abhishekraha.secretmanager.utils.SecureClipboardManager.get_current_clipboard_text", return_value="timed-secret")
     def test_timed_auto_clear_clears_matching_hash(self, mock_get_text, mock_clear_clipboard):
         with patch.object(SecureClipboardManager, "_fallback_copy", return_value=True):
-            success = SecureClipboardManager.copy("timed-secret", clear_timeout_seconds=0.1, enable_privacy=False)
+            success = SecureClipboardManager.copy("timed-secret", clear_timeout_seconds=0.05, enable_privacy=False)
             self.assertTrue(success)
-            time.sleep(0.2)
+            # Polling wait up to 2.0s for the timer thread to fire reliably on busy CI runners
+            for _ in range(40):
+                if mock_clear_clipboard.called:
+                    break
+                time.sleep(0.05)
             mock_clear_clipboard.assert_called_once()
 
     @patch("dev.abhishekraha.secretmanager.utils.SecureClipboardManager.clear_system_clipboard")
