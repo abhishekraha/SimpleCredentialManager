@@ -1,41 +1,83 @@
 name: Package Multi-OS Binaries
 
 on:
+  release:
+    types:
+      - published
+      - created
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to attach binaries to (e.g. v3.0.0)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  resolve-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
+    steps:
+      - name: Resolve target tag
+        id: resolve
+        shell: python
+        run: |
+          import os
+
+          event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+          ref = os.environ.get("GITHUB_REF", "")
+          input_tag = os.environ.get("INPUT_TAG", "").strip()
+
+          resolved_tag = ""
+          if input_tag:
+              resolved_tag = input_tag
+          elif event_name == "release":
+              resolved_tag = os.environ.get("RELEASE_TAG", "")
+          elif ref.startswith("refs/tags/"):
+              resolved_tag = ref.replace("refs/tags/", "")
+
+          print(f"Resolved release tag: {resolved_tag}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"tag_name={resolved_tag}\n")
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+  build-executables:
+    needs: [resolve-tag]
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            artifact_name: scm-windows-x64.exe
-            asset_path: dist/scm.exe
-            build_command: |
-              pyinstaller --clean --noconfirm --onefile --name scm --console --add-data "dev;dev" SimpleCredentialManagerCli.py
+            platform_id: windows-x64
+            cli_name: scm.exe
+            ui_name: SimpleCredentialManagerUi.exe
+            archive_ext: zip
           - os: macos-latest
-            artifact_name: scm-macos-x64
-            asset_path: dist/scm
-            build_command: |
-              pyinstaller --clean --noconfirm --onefile --name scm SimpleCredentialManagerCli.py
+            platform_id: macos-x64
+            cli_name: scm
+            ui_name: SimpleCredentialManagerUi
+            archive_ext: tar.gz
           - os: ubuntu-latest
-            artifact_name: scm-linux-x64
-            asset_path: dist/scm
-            build_command: |
-              pyinstaller --clean --noconfirm --onefile --name scm SimpleCredentialManagerCli.py
+            platform_id: linux-x64
+            cli_name: scm
+            ui_name: SimpleCredentialManagerUi
+            archive_ext: tar.gz
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag_name != '' && needs.resolve-tag.outputs.tag_name || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -45,36 +87,109 @@ jobs:
       - name: Install dependencies and PyInstaller
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pyinstaller
+          python -m pip install -r requirements.txt pyinstaller
 
-      - name: Build standalone binary with PyInstaller
-        run: ${{ matrix.build_command }}
+      - name: Build Standalone CLI Binary
+        run: |
+          pyinstaller --clean --noconfirm --onefile \
+            --name scm \
+            --console \
+            --collect-all cryptography \
+            --collect-all pwinput \
+            --collect-all pyotp \
+            --collect-all rich \
+            --collect-all typer \
+            ${{ runner.os == 'Windows' && '--add-data "dev;dev"' || '--add-data "dev:dev"' }} \
+            SimpleCredentialManagerCli.py
 
-      - name: Upload artifact
+      - name: Build Standalone Desktop UI Binary
+        run: |
+          pyinstaller --clean --noconfirm --onefile \
+            --name SimpleCredentialManagerUi \
+            ${{ runner.os == 'Windows' && '--noconsole --add-data "dev;dev"' || (runner.os == 'macOS' && '--windowed --add-data "dev:dev"' || '--add-data "dev:dev"') }} \
+            --collect-all cryptography \
+            --collect-all pwinput \
+            --collect-all pyotp \
+            --collect-all rich \
+            --collect-all typer \
+            --collect-all PySide6 \
+            SimpleCredentialManagerUi.py
+
+      - name: Package Distributable Binaries
+        id: package
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          PLATFORM="${{ matrix.platform_id }}"
+          TAG="${{ needs.resolve-tag.outputs.tag_name }}"
+          VERSION_SUFFIX="${TAG:-latest}"
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "dist/scm.exe" "artifacts/scm-${PLATFORM}.exe"
+            cp "dist/SimpleCredentialManagerUi.exe" "artifacts/SimpleCredentialManagerUi-${PLATFORM}.exe"
+            
+            # Create a combined bundle zip containing both CLI and UI
+            BUNDLE_DIR="scm-bundle-${PLATFORM}-${VERSION_SUFFIX}"
+            mkdir -p "$BUNDLE_DIR"
+            cp "dist/scm.exe" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManagerUi.exe" "$BUNDLE_DIR/"
+            cp "README.md" "$BUNDLE_DIR/" || true
+            cp "LICENSE" "$BUNDLE_DIR/" || true
+            powershell -Command "Compress-Archive -Path '${BUNDLE_DIR}' -DestinationPath 'artifacts/scm-bundle-${PLATFORM}-${VERSION_SUFFIX}.zip'"
+          else
+            chmod +x "dist/scm"
+            chmod +x "dist/SimpleCredentialManagerUi"
+            cp "dist/scm" "artifacts/scm-${PLATFORM}"
+            cp "dist/SimpleCredentialManagerUi" "artifacts/SimpleCredentialManagerUi-${PLATFORM}"
+            
+            # Create a combined tar.gz archive
+            BUNDLE_DIR="scm-bundle-${PLATFORM}-${VERSION_SUFFIX}"
+            mkdir -p "$BUNDLE_DIR"
+            cp "dist/scm" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManagerUi" "$BUNDLE_DIR/"
+            cp "README.md" "$BUNDLE_DIR/" || true
+            cp "LICENSE" "$BUNDLE_DIR/" || true
+            tar -czvf "artifacts/scm-bundle-${PLATFORM}-${VERSION_SUFFIX}.tar.gz" "$BUNDLE_DIR"
+          fi
+
+      - name: Upload Platform Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.asset_path }}
+          name: binaries-${{ matrix.platform_id }}
+          path: artifacts/*
 
   build-linux-appimage:
+    needs: [resolve-tag]
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag_name != '' && needs.resolve-tag.outputs.tag_name || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install dependencies and PyInstaller
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pyinstaller
+          python -m pip install -r requirements.txt pyinstaller
 
       - name: Build AppDir & AppImage
+        shell: bash
         run: |
-          pyinstaller --clean --noconfirm --onedir --name scm SimpleCredentialManagerCli.py
+          mkdir -p artifacts
+          pyinstaller --clean --noconfirm --onedir --name scm \
+            --collect-all cryptography \
+            --collect-all pwinput \
+            --collect-all pyotp \
+            --collect-all rich \
+            --collect-all typer \
+            --add-data "dev:dev" \
+            SimpleCredentialManagerCli.py
+
           mkdir -p AppDir/usr/bin
           cp -r dist/scm/* AppDir/usr/bin/
           cat << 'EOF' > AppDir/AppRun
@@ -83,6 +198,7 @@ jobs:
           exec "${HERE}/usr/bin/scm" "$@"
           EOF
           chmod +x AppDir/AppRun
+
           cat << 'EOF' > AppDir/scm.desktop
           [Desktop Entry]
           Name=Simple Credential Manager
@@ -92,20 +208,21 @@ jobs:
           Categories=Utility;Security;
           EOF
           touch AppDir/scm.png
+
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir dist/scm-linux-x86_64.AppImage || true
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir artifacts/scm-linux-x86_64.AppImage || true
 
       - name: Upload Linux AppImage Artifact
-        if: hashFiles('dist/*.AppImage') != ''
+        if: hashFiles('artifacts/*.AppImage') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: scm-linux-x86_64.AppImage
-          path: dist/scm-linux-x86_64.AppImage
+          name: binary-linux-appimage
+          path: artifacts/*.AppImage
 
-  release:
-    needs: [build, build-linux-appimage]
-    if: startsWith(github.ref, 'refs/tags/v')
+  publish-to-release:
+    needs: [resolve-tag, build-executables, build-linux-appimage]
+    if: always() && !cancelled() && needs.resolve-tag.outputs.tag_name != ''
     runs-on: ubuntu-latest
     steps:
       - name: Download all built artifacts
@@ -113,9 +230,17 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Publish Binaries to GitHub Release
+      - name: Flatten artifact files for release attachment
+        shell: bash
+        run: |
+          mkdir -p dist-assets
+          find release-artifacts -type f -exec cp {} dist-assets/ \;
+          ls -la dist-assets/
+
+      - name: Attach Binaries to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/**/*
+          tag_name: ${{ needs.resolve-tag.outputs.tag_name }}
+          files: dist-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
