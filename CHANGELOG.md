@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## v3.0.0 - 2026-10-30
+### Added
+- **Modern PySide6 Desktop GUI**: Full-featured 3-pane responsive desktop interface with dark/light themes, reactive live search, category grouping, tags, and favorites.
+- **Modern Typer & Rich CLI**: Interactive, colored tabular CLI (`scm interactive`, `scm list`, `scm get`, `scm add`, `scm totp`, `scm health`, `scm bulk`).
+- **HaveIBeenPwned Dark Web Breach Checking**: Privacy-preserving k-anonymity breach detection integrated directly into the password health audit, secret detail panel, and add/edit dialog with live status logs and deduplicated queries.
+- **Two-Factor Authentication (TOTP 2FA)**: RFC 6238 TOTP computation with animated circular countdown arc in UI and instant code generation in CLI.
+- **Two-Tier Envelope Cryptography**: Master Key (KM) derivation via Argon2id (64MB RAM, $t=3$, $p=4$, with Scrypt fallback), KEK/DEK hierarchy, AES-256-GCM envelope wrapping, and HMAC-SHA256 blind indexing for leak-free $O(1)$ secret lookups.
+- **SQLite WAL Storage Engine**: High-performance embedded SQLite database (`vault.scmdb`) with Write-Ahead Logging and automatic migration from legacy file SerDe.
+- **Memory Hygiene & Zero-Trace Clipboard**: `SecureBuffer` mutable `bytearray` zeroization (memset on exit/lock) and `SecureClipboardManager` with OS-level privacy exclusion flags and 30-second background auto-clear.
+- **Progress Animation & Live Activity Logs**: Real-time multi-step progress logging and indeterminate progress animation for vault health audits.
+- **Click-to-Copy Everywhere**: Quick click-to-copy on username, password (even while masked), and TOTP code in the modern UI.
+- **Server Mode & Docker Roadmap**: Architectural blueprint for containerized web server mode with Nginx `/password/` reverse proxy integration.
+
+### Changed
+- Reorganized repository root: moved launcher scripts into `scripts/launchers/` and builder tools into `scripts/local-builder/`.
+- Removed obsolete screenshots from `images/` to streamline repository footprint.
+- Updated `SecretManagerService.update_secret` and `add_secret` to atomically handle renaming, categories, tags, favorites, and TOTP secrets with audit logging.
+- Upgraded package version to `3.0.0` across all metadata and configuration files.
+
 ## v2.0.8 - 2026-04-19
 ### Changed
 - Replaced the desktop upgrade prompt redirect with an in-place update flow that downloads and installs the latest tagged release into the current app directory.

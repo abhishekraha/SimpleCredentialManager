@@ -68,20 +68,41 @@ def _initial_setup():
     clear_screen()
 
 
+def _check_and_prompt_wipe():
+    wipe_choice = input("You have exceeded the maximum attempts. Do you want to wipe all credentials and start fresh? (y/N): ").strip().lower()
+    if wipe_choice in ("y", "yes"):
+        confirm_wipe = input("Are you sure? This will permanently delete all stored credentials! Type 'WIPE' to confirm: ").strip()
+        if confirm_wipe == "WIPE":
+            SERVICE.reset_vault_and_wipe_all()
+            print("Vault has been wiped.")
+            _initial_setup()
+            return True
+    return False
+
+
 def _authenticate():
     print(HEADER)
     while True:
         lockout_status = SERVICE.get_lockout_status()
-        if lockout_status["is_locked_out"]:
-            print(f"Too many failed attempts. Try again in {lockout_status['remaining_seconds']} second(s).")
-            return False
+        if lockout_status["is_locked_out"] or lockout_status["failed_attempts"] >= 3:
+            if _check_and_prompt_wipe():
+                return True
+            if lockout_status["is_locked_out"]:
+                print(f"Too many failed attempts. Try again in {lockout_status['remaining_seconds']} second(s).")
+                return False
 
         is_authenticated, message = SERVICE.authenticate(secure_input("Enter master password: "))
         if is_authenticated:
             return True
 
         print(message)
-        if SERVICE.get_lockout_status()["is_locked_out"] or "Vault file could not be opened:" in message:
+        updated_status = SERVICE.get_lockout_status()
+        if updated_status["is_locked_out"] or updated_status["failed_attempts"] >= 3:
+            if _check_and_prompt_wipe():
+                return True
+            if updated_status["is_locked_out"]:
+                return False
+        if "Vault file could not be opened:" in message:
             return False
 
 
@@ -431,7 +452,7 @@ def _run_authenticated_session():
             return "locked"
 
 
-def main():
+def run_legacy_cli():
     _show_startup_release_warning()
     try:
         if not SERVICE.initialize():
@@ -449,6 +470,19 @@ def main():
         session_result = _run_authenticated_session()
         if session_result != "locked":
             return 0
+
+
+def main():
+    import sys
+    # Check if modern Typer/Rich CLI is requested or used as default entry point
+    if "--legacy" not in sys.argv:
+        try:
+            from dev.abhishekraha.secretmanager.cli.ModernCli import app as modern_cli_app
+            return modern_cli_app()
+        except Exception as exc:
+            print(f"Warning: Failed to launch Modern CLI ({exc}), falling back to legacy CLI...")
+
+    return run_legacy_cli()
 
 
 if __name__ == "__main__":

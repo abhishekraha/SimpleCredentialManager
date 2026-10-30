@@ -44,6 +44,12 @@ def load_secrets(file_name):
     if not secret_file.exists():
         raise FileNotFoundError(f"File {file_name} does not exist")
 
+    # If the file is an SQLite database (.scmdb or sqlite header), read via SqliteVaultStorage
+    if secret_file.suffix == ".scmdb" or _is_sqlite_database(secret_file):
+        from dev.abhishekraha.secretmanager.storage.SqliteVaultStorage import SqliteVaultStorage
+        storage = SqliteVaultStorage(secret_file)
+        return storage.get_all_secrets(CodecUtils.get_derived_key())
+
     encrypted_bytes = secret_file.read_bytes()
     if not encrypted_bytes:
         return {}
@@ -57,6 +63,15 @@ def load_secrets(file_name):
         name: Secret.from_dict(secret_payload)
         for name, secret_payload in decoded_payload.items()
     }
+
+
+def _is_sqlite_database(file_path: Path) -> bool:
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(16)
+            return header.startswith(b"SQLite format 3\x00")
+    except Exception:
+        return False
 
 
 def dump_bytes(payload, file_name, override=False):

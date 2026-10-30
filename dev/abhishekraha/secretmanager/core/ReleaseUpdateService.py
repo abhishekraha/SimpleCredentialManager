@@ -151,6 +151,13 @@ class ReleaseUpdateService:
         days_since_release = _days_since_release(published_at)
         archive_download_url = _build_archive_download_url(tag_name)
 
+        is_newer = bool(latest_version and _compare_versions(latest_version, current_version) > 0)
+        is_stale = bool(
+            is_newer
+            and days_since_release is not None
+            and days_since_release > self._stale_after_days
+        )
+
         return {
             "current_version": current_version,
             "current_version_label": _to_version_label(current_version),
@@ -160,8 +167,8 @@ class ReleaseUpdateService:
             "download_url": archive_download_url or payload.get("zipball_url") or payload.get("html_url") or self._release_page_url,
             "published_at": published_at,
             "days_since_release": days_since_release,
-            "update_available": bool(latest_version and _compare_versions(latest_version, current_version) > 0),
-            "is_stale": days_since_release is not None and days_since_release > self._stale_after_days,
+            "update_available": is_newer,
+            "is_stale": is_stale,
             "source": source,
         }
 

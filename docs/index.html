@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Credential Manager (SCM) — Sovereign, Zero-Cloud Password & 2FA Vault</title>
+  <meta name="description" content="Local-first, sovereign credential manager built for developers and power users. Featuring Argon2id, Two-Tier Envelope Encryption (KEK/DEK), SQLite WAL, RFC 6238 TOTP, and native memory zeroing.">
+  <link rel="icon" type="image/svg+xml" href="assets/scm-logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-radial-glow"></div>
+
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="#" class="brand-link">
+        <img src="assets/scm-logo.svg" alt="SCM Logo" class="brand-logo-img" width="34" height="34">
+        <span>SCM</span>
+        <span class="brand-tag">v3.0 Superpowers</span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#features">Superpowers</a></li>
+        <li><a href="#quickstart">Quickstart</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#security">Security Model</a></li>
+        <li><a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener" class="nav-cta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>Star on GitHub</span>
+        </a></li>
+      </ul>
+
+      <button class="mobile-toggle" onclick="toggleMobileMenu()" aria-label="Toggle navigation">
+        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div id="mobileMenu" class="mobile-menu" style="display: none;">
+      <a href="#features" onclick="toggleMobileMenu()">Superpowers</a>
+      <a href="#quickstart" onclick="toggleMobileMenu()">Quickstart</a>
+      <a href="#architecture" onclick="toggleMobileMenu()">Architecture</a>
+      <a href="#security" onclick="toggleMobileMenu()">Security Model</a>
+      <a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="badge-pill">
+        <span class="badge-dot"></span>
+        <span>Local-First Sovereign Credential Infrastructure</span>
+      </div>
+
+      <h1 class="hero-title">
+        Your Vault. Your Hardware. <br>
+        <span class="gradient-text">Zero Cloud Dependencies.</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Simple Credential Manager is a high-assurance, military-grade credential vault and RFC 6238 2FA authenticator. Designed for developers, engineers, and privacy minimalists who refuse to surrender their master keys to the cloud.
+      </p>
+
+      <div class="hero-badges-strip" role="region" aria-label="Security and Technical Specifications">
+        <button type="button" class="tech-badge" data-tech="argon2id" aria-haspopup="dialog" aria-label="Learn about Argon2id KDF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Argon2id (64MB/3-iter)</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="envelope" aria-haspopup="dialog" aria-label="Learn about Two-Tier Envelope Encryption">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Two-Tier Envelope (KEK/DEK)</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="sqlite-wal" aria-haspopup="dialog" aria-label="Learn about SQLite WAL Mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg>
+          <span>SQLite WAL Mode</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="totp" aria-haspopup="dialog" aria-label="Learn about RFC 6238 TOTP 2FA">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>RFC 6238 TOTP 2FA</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="hibp" aria-haspopup="dialog" aria-label="Learn about HIBP k-Anonymity Leak Check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+          <span>HIBP k-Anonymity</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="secure-buffer" aria-haspopup="dialog" aria-label="Learn about SecureBuffer Memory Zeroing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>SecureBuffer Memory Zeroing</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="zero-clipboard" aria-haspopup="dialog" aria-label="Learn about Zero-Trace OS Clipboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>Zero-Trace OS Clipboard</span>
+          <span class="badge-hint">info</span>
+        </button>
+        <button type="button" class="tech-badge" data-tech="cross-platform" aria-haspopup="dialog" aria-label="Learn about Cross-Platform Architecture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>Cross-Platform (Win/macOS/Linux)</span>
+          <span class="badge-hint">info</span>
+        </button>
+      </div>
+
+      <div class="hero-actions">
+        <a href="#quickstart" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Get Started in 30 Seconds</span>
+        </a>
+        <a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener" class="btn btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>View Source Code</span>
+        </a>
+        <a href="#architecture" class="btn btn-outline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+          <span>Architecture Deep Dive</span>
+        </a>
+      </div>
+
+      <!-- Interactive Terminal Showcase -->
+      <div class="hero-terminal-wrapper">
+        <div class="terminal-window">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <div class="terminal-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              scm interactive-shell &mdash; zsh / powershell
+            </div>
+            <div class="terminal-actions">
+              <span class="txt-dim" style="font-size: 0.75rem;">SHA-256 Verified</span>
+            </div>
+          </div>
+
+          <div class="terminal-tabs">
+            <button class="tab-btn active" data-tab="tab-list" onclick="switchTab('tab-list')">
+              <span>1. scm list</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-get" onclick="switchTab('tab-get')">
+              <span>2. scm get --clip</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-totp" onclick="switchTab('tab-totp')">
+              <span>3. scm totp</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-health" onclick="switchTab('tab-health')">
+              <span>4. scm health</span>
+            </button>
+          </div>
+
+          <div class="terminal-body">
+            <!-- TAB 1: LIST -->
+            <div id="tab-list" class="tab-content active">
+              <div class="cmd-line">
+                <div>
+                  <span class="cmd-prompt">user@workstation:~$</span> <span class="cmd-text">python SimpleCredentialManagerCli.py list</span>
+                </div>
+                <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerCli.py list')">Copy</button>
+              </div>
+              <div class="cmd-output"><span class="txt-green">Unlocked vault:</span> ~/.simpleCredentialManager/vault.scmdb (Argon2id + SQLite WAL)
+┌──────────┬─────────────────────────┬───────────────────┬─────────┬─────────────────────┐
+│ <span class="txt-bold">Index</span>    │ <span class="txt-bold">Service / Name</span>          │ <span class="txt-bold">Username</span>          │ <span class="txt-bold">2FA/TOTP</span>│ <span class="txt-bold">Last Updated</span>        │
+├──────────┼─────────────────────────┼───────────────────┼─────────┼─────────────────────┤
+│ 1        │ <span class="txt-cyan">aws-production-root</span>     │ devops@corp.internal │ <span class="txt-green">ENABLED</span> │ 2026-10-29 18:04:12 │
+│ 2        │ <span class="txt-cyan">github-personal-token</span>   │ abhishekraha      │ <span class="txt-green">ENABLED</span> │ 2026-10-28 09:22:15 │
+│ 3        │ <span class="txt-cyan">gpg-signing-subkeystore</span> │ secops@domain.io  │ <span class="txt-yellow">N/A</span>     │ 2026-10-25 14:10:00 │
+│ 4        │ <span class="txt-cyan">postgres-readreplica</span>    │ cluster_adm       │ <span class="txt-yellow">N/A</span>     │ 2026-10-20 21:44:03 │
+└──────────┴─────────────────────────┴───────────────────┴─────────┴─────────────────────┘
+<span class="txt-dim">Showing 4 encrypted records in memory (SecureBuffer active, lock timeout: 60s)</span></div>
+            </div>
+
+            <!-- TAB 2: GET CLIP -->
+            <div id="tab-get" class="tab-content">
+              <div class="cmd-line">
+                <div>
+                  <span class="cmd-prompt">user@workstation:~$</span> <span class="cmd-text">python SimpleCredentialManagerCli.py get github-personal-token --clip</span>
+                </div>
+                <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerCli.py get github-personal-token --clip')">Copy</button>
+              </div>
+              <div class="cmd-output"><span class="txt-dim">[1/2] Blind index matched in 0.42ms via HMAC-SHA256(name, Pepper)</span>
+<span class="txt-dim">[2/2] Row-level AEAD decrypted in 0.18ms</span>
+
+<span class="txt-green">✔ Credential copied to system clipboard!</span>
+  • OS Privacy Flags: <span class="txt-cyan">ExcludeFromClipboardHistory: ACTIVE</span>
+  • Memory Security:  <span class="txt-cyan">SecureBuffer zeroed after transfer</span>
+  • Auto-Erase Timer: <span class="txt-yellow">Clipboard will overwrite with zeros in 30 seconds</span></div>
+            </div>
+
+            <!-- TAB 3: TOTP -->
+            <div id="tab-totp" class="tab-content">
+              <div class="cmd-line">
+                <div>
+                  <span class="cmd-prompt">user@workstation:~$</span> <span class="cmd-text">python SimpleCredentialManagerCli.py totp aws-production-root</span>
+                </div>
+                <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerCli.py totp aws-production-root')">Copy</button>
+              </div>
+              <div class="cmd-output"><span class="txt-green">RFC 6238 Standard Time-based One-Time Password:</span>
+
+  Service:  <span class="txt-bold">aws-production-root</span>
+  Account:  devops@corp.internal
+  Current Code: <span id="liveTotpCode" class="txt-cyan txt-bold" style="font-size: 1.25rem; letter-spacing: 2px;">849 201</span>  <span id="liveTotpTimer" class="txt-yellow">(22s remaining)</span>
+
+<span class="txt-dim">Press [Enter] to copy TOTP token directly to clipboard or [Ctrl+C] to abort.</span></div>
+            </div>
+
+            <!-- TAB 4: HEALTH -->
+            <div id="tab-health" class="tab-content">
+              <div class="cmd-line">
+                <div>
+                  <span class="cmd-prompt">user@workstation:~$</span> <span class="cmd-text">python SimpleCredentialManagerCli.py health --breaches</span>
+                </div>
+                <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerCli.py health --breaches')">Copy</button>
+              </div>
+              <div class="cmd-output">Running Vault Security & Integrity Diagnostics:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[1/4] Shannon Entropy & Complexity Audit:
+      <span class="txt-green">✔ 100% of stored passwords exceed 72-bit Shannon entropy floor.</span>
+[2/4] Password Re-use Cross-Check:
+      <span class="txt-green">✔ 0 collisions detected across 4 distinct records.</span>
+[3/4] HaveIBeenPwned k-Anonymity Leak Check (SHA-1 prefix-only 5 chars query):
+      Querying 0.00% plain text over wire...
+      <span class="txt-green">✔ All credentials clean. Zero breach appearances detected.</span>
+[4/4] SQLite Integrity Check:
+      <span class="txt-green">✔ WAL clean, PRAGMA integrity_check == ok.</span>
+
+<span class="txt-bold txt-green">OVERALL VAULT HEALTH SCORE: 100/100 (A+)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Pillars & Superpowers -->
+  <section id="features" class="section section-alt">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">High-Assurance Architecture</div>
+        <h2 class="section-title">Built Without Compromise. Engineered for Paranoia.</h2>
+        <p class="section-desc">
+          Cloud password managers are high-value honeypots susceptible to server-side breaches and supply chain attacks. SCM replaces the cloud with local, cryptographically airtight sovereignty.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3 class="feature-title">Military-Grade Cryptography</h3>
+          <p class="feature-text">
+            Derives master keys using <strong>Argon2id</strong> (the memory-hard password hashing competition winner), rendering GPU/ASIC attacks ineffective.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Two-Tier Envelope Encryption (KEK + DEK)</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> AES-256-GCM authenticated cipher with tag verification</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Instant master password rotation with zero re-encryption of data</li>
+          </ul>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card cyan">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <h3 class="feature-title">SecureBuffer Memory Zeroing</h3>
+          <p class="feature-text">
+            Python immutable strings leave sensitive artifacts in process memory. SCM overrides memory boundaries using bytearray wiping routines.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Explicit C-style memset overwrites RAM with zeros upon lock</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Automated 60-second inactivity lock clears DEK from memory</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Prevents core dump, swap file, and cold boot extraction</li>
+          </ul>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card purple">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </div>
+          <h3 class="feature-title">Zero-Trace OS Clipboard</h3>
+          <p class="feature-text">
+            Copying credentials without leaking to third-party clipboard monitors, cloud syncs, or system history buffers.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Sets Windows <code>ClipboardViewerIgnore</code> / <code>ExcludeClipboardContentFromMonitorProcessing</code></li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> macOS <code>org.nspasteboard.ConcealedType</code> isolation</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Hard 30-second background eraser wiping clipboard automatically</li>
+          </ul>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card cyan">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <h3 class="feature-title">SQLite WAL & Blind Indexing</h3>
+          <p class="feature-text">
+            High performance transactional storage with row-level encryption and zero-knowledge name querying.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Write-Ahead Logging (WAL) ensures atomic crash resilience</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> HMAC-SHA256 Blind Indexing enables instant O(1) searches</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Row-level AEAD: only decrypted when individually queried</li>
+          </ul>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card purple">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3 class="feature-title">RFC 6238 TOTP 2FA Engine</h3>
+          <p class="feature-text">
+            Ditch standalone authenticator apps. SCM generates real-time TOTP tokens directly in your CLI or desktop window.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Compatible with Google Authenticator, Authy, and Duo</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> QR code camera scanning and <code>otpauth://</code> URI ingestion</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Encrypted TOTP secret storage with row-level AEAD protection</li>
+          </ul>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon-wrapper">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <h3 class="feature-title">Tamper-Proof Audit Trail</h3>
+          <p class="feature-text">
+            Every authentication event, secret access, export, and failed password attempt is logged into a structured, verifiable trail.
+          </p>
+          <ul class="feature-list">
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Redacts sensitive attributes automatically before writing to disk</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Exponential lockout timer defends against brute-force attacks</li>
+            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Standalone, non-cloud JSONL audit trail with monotonic ordering</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Quickstart & CLI Guide -->
+  <section id="quickstart" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">Quickstart Guide</div>
+        <h2 class="section-title">Get Up and Running in Seconds</h2>
+        <p class="section-desc">
+          Install SCM as a single standalone binary or through Python pip. No cloud accounts, no subscription keys, no network connection required.
+        </p>
+      </div>
+
+      <div class="quickstart-box">
+        <div class="os-tabs">
+          <button class="os-tab active" data-os="os-windows" onclick="switchOsTab('os-windows')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+            Windows (PowerShell)
+          </button>
+          <button class="os-tab" data-os="os-macos" onclick="switchOsTab('os-macos')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.1c.62-.75 1.04-1.8 1.01-2.85-.9.04-1.99.6-2.61 1.34-.55.63-.99 1.68-.86 2.7 1 .08 1.92-.5 2.46-1.19z"/></svg>
+            macOS (Zsh)
+          </button>
+          <button class="os-tab" data-os="os-linux" onclick="switchOsTab('os-linux')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12.001 2c-4.418 0-8 3.582-8 8 0 2.784 1.428 5.234 3.597 6.666v1.441a1 1 0 0 0 .5.866l3.5 2.02a1 1 0 0 0 .806 0l3.5-2.02a1 1 0 0 0 .5-.866v-1.441c2.169-1.432 3.597-3.882 3.597-6.666 0-4.418-3.582-8-8-8z"/></svg>
+            Linux / Arch / Debian
+          </button>
+        </div>
+
+        <div id="os-windows" class="os-tab-content active">
+          <p style="color: var(--text-muted); font-size: 0.9rem;">1. Clone the repository and install requirements in your virtual environment:</p>
+          <div class="code-snippet">
+            <code>git clone https://github.com/abhishekraha/SimpleCredentialManager.git<br>cd SimpleCredentialManager<br>pip install -r requirements.txt</code>
+            <button class="copy-btn" onclick="copyCode(this, 'git clone https://github.com/abhishekraha/SimpleCredentialManager.git\ncd SimpleCredentialManager\npip install -r requirements.txt')">Copy</button>
+          </div>
+
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1.25rem;">2. Launch the Modern UI or CLI:</p>
+          <div class="code-snippet">
+            <code># Launch Desktop UI (Modern PySide6 interface by default)<br>python SimpleCredentialManagerUi.py<br><br># Or launch Modern CLI<br>python SimpleCredentialManagerCli.py</code>
+            <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerUi.py')">Copy</button>
+          </div>
+        </div>
+
+        <div id="os-macos" class="os-tab-content">
+          <p style="color: var(--text-muted); font-size: 0.9rem;">1. Install dependencies via Homebrew and pip:</p>
+          <div class="code-snippet">
+            <code>brew install python@3.12<br>git clone https://github.com/abhishekraha/SimpleCredentialManager.git<br>cd SimpleCredentialManager && python3 -m venv .venv && source .venv/bin/activate<br>pip install -r requirements.txt</code>
+            <button class="copy-btn" onclick="copyCode(this, 'git clone https://github.com/abhishekraha/SimpleCredentialManager.git\ncd SimpleCredentialManager && python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt')">Copy</button>
+          </div>
+
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1.25rem;">2. Run Modern UI or CLI:</p>
+          <div class="code-snippet">
+            <code>python3 SimpleCredentialManagerUi.py   # Modern PySide6 UI<br>python3 SimpleCredentialManagerCli.py  # Interactive CLI</code>
+            <button class="copy-btn" onclick="copyCode(this, 'python3 SimpleCredentialManagerUi.py')">Copy</button>
+          </div>
+        </div>
+
+        <div id="os-linux" class="os-tab-content">
+          <p style="color: var(--text-muted); font-size: 0.9rem;">1. Setup in standard Linux terminal (Wayland and X11 supported):</p>
+          <div class="code-snippet">
+            <code>sudo apt install python3-tk xclip   # On Ubuntu/Debian<br>git clone https://github.com/abhishekraha/SimpleCredentialManager.git<br>cd SimpleCredentialManager && pip install -r requirements.txt</code>
+            <button class="copy-btn" onclick="copyCode(this, 'sudo apt install python3-tk xclip\ngit clone https://github.com/abhishekraha/SimpleCredentialManager.git\ncd SimpleCredentialManager && pip install -r requirements.txt')">Copy</button>
+          </div>
+
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1.25rem;">2. Run Modern UI or CLI:</p>
+          <div class="code-snippet">
+            <code>python3 SimpleCredentialManagerUi.py   # Modern PySide6 UI<br>python3 SimpleCredentialManagerCli.py  # Interactive CLI</code>
+            <button class="copy-btn" onclick="copyCode(this, 'python3 SimpleCredentialManagerUi.py')">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cryptography & Architecture Overview -->
+  <section id="architecture" class="section section-alt">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">System Architecture</div>
+        <h2 class="section-title">Two-Tier Envelope Cryptography</h2>
+        <p class="section-desc">
+          How SCM protects your credentials through cryptographic isolation between Master Passwords and Data Encryption Keys.
+        </p>
+      </div>
+
+      <div class="arch-grid">
+        <div class="arch-info">
+          <h3>Cryptographic Lifecycle</h3>
+          <p style="color: var(--text-muted);">
+            Traditional vaults derive an encryption key straight from your master password and encrypt the entire file. SCM decouples key verification from data decryption using an Envelope Model:
+          </p>
+
+          <div class="arch-steps">
+            <div class="arch-step-item">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>Master Password &rarr; Argon2id KDF</h4>
+                <p>Computes a 256-bit Key Encryption Key (KEK) using 64MB memory cost factor, completely neutralizing brute-force hardware.</p>
+              </div>
+            </div>
+
+            <div class="arch-step-item">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>Encrypted DEK Unwrap</h4>
+                <p>The KEK decrypts the randomized Data Encryption Key (DEK). If the master password is modified, only the DEK envelope is re-encrypted in 1ms.</p>
+              </div>
+            </div>
+
+            <div class="arch-step-item">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h4>Row-Level SQLite AEAD</h4>
+                <p>Each secret payload is independently encrypted with a unique 96-bit AES-GCM IV and verified with HMAC blind indexing.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram-card">
+          <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.75rem; font-family: var(--font-mono);">
+            DATA FLOW // ENVELOPE ENCRYPTION ARCHITECTURE
+          </div>
+          <pre class="diagram-pre">
++──────────────────────────────────────────────────────────+
+│                 USER MASTER PASSWORD                     │
++──────────────────────────────────────────────────────────+
+                             │
+                             ▼
+  [ Argon2id KDF ] (Salt: 16B, m=64MB, t=3 iterations)
+                             │
+            ┌────────────────┴────────────────┐
+            ▼                                 ▼
+   [ Password Verifier ]              [ Key Encryption Key ]
+  (hmac.compare_digest)                       (KEK)
+            │                                 │
+     (Auth Approved)                          ▼
+            │                   [ Decrypt DEK Envelope ]
+            │                    AES-256-GCM authenticated
+            │                                 │
+            └───────────────┬─────────────────┘
+                            ▼
+              [ Data Encryption Key (DEK) ]
+                (In-Memory SecureBuffer)
+                            │
+       ┌────────────────────┼────────────────────┐
+       ▼                    ▼                    ▼
+[ Blind Index ]     [ Row-Level Enc ]    [ RFC 6238 TOTP ]
+HMAC-SHA256(Name)     AES-256-GCM(Payload)  Decrypted in RAM
+       │                    │                    │
+       ▼                    ▼                    ▼
++──────────────────────────────────────────────────────────+
+│             SQLITE WAL ENGINE (~/vault.scmdb)            │
++──────────────────────────────────────────────────────────+
+          </pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security Comparison Table -->
+  <section id="security" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">Feature Matrix</div>
+        <h2 class="section-title">How SCM Compares</h2>
+        <p class="section-desc">
+          Compare SCM against traditional browser storage and commercial cloud password managers.
+        </p>
+      </div>
+
+      <div class="comparison-table-wrapper">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Security Vector</th>
+              <th class="highlight-col">Simple Credential Manager (SCM)</th>
+              <th>Commercial Cloud Vaults</th>
+              <th>Browser Password Storage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Storage Topology</strong></td>
+              <td class="highlight-col"><span class="txt-green">100% Local / Zero-Cloud</span></td>
+              <td>Remote AWS / Azure Cloud Sync</td>
+              <td>Local Browser Profile / Vendor Cloud</td>
+            </tr>
+            <tr>
+              <td><strong>KDF Algorithm</strong></td>
+              <td class="highlight-col"><span class="txt-green">Argon2id / Scrypt 64-byte Split</span></td>
+              <td>PBKDF2-HMAC (Vulnerable to GPU)</td>
+              <td>OS Keychain / DPAPI</td>
+            </tr>
+            <tr>
+              <td><strong>Envelope Encryption</strong></td>
+              <td class="highlight-col"><span class="txt-green">Two-Tier KEK / DEK</span></td>
+              <td>Single-Tier Full DB Key</td>
+              <td>None</td>
+            </tr>
+            <tr>
+              <td><strong>Memory Zeroing</strong></td>
+              <td class="highlight-col"><span class="txt-green">SecureBuffer (Explicit RAM Zeroing)</span></td>
+              <td>Garbage Collector Dependent</td>
+              <td>Plaintext RAM strings</td>
+            </tr>
+            <tr>
+              <td><strong>Clipboard Guard</strong></td>
+              <td class="highlight-col"><span class="txt-green">OS Privacy Flags + 30s Auto-Erase</span></td>
+              <td>Basic Timer (No privacy flags)</td>
+              <td>Unprotected Clipboard</td>
+            </tr>
+            <tr>
+              <td><strong>Dual CLI / UI Support</strong></td>
+              <td class="highlight-col"><span class="txt-green">Rich Interactive CLI + Desktop UI</span></td>
+              <td>GUI Only (CLI via slow wrapper)</td>
+              <td>Browser UI Only</td>
+            </tr>
+            <tr>
+              <td><strong>Telemetry & Analytics</strong></td>
+              <td class="highlight-col"><span class="txt-green">Absolute Zero Telemetry</span></td>
+              <td>Usage Tracking & Third-party SDKs</td>
+              <td>Full Vendor Telemetry</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <h4>
+            <img src="assets/scm-logo.svg" alt="SCM Logo" class="brand-logo-img" width="26" height="26" style="vertical-align: middle; margin-right: 8px;">
+            Simple Credential Manager
+          </h4>
+          <p class="footer-desc">
+            Sovereign, open-source credential manager engineered for developers who value security, speed, and absolute local privacy.
+          </p>
+          <a href="https://abhishekraha.github.io/AbhishekRaha" target="_blank" rel="noopener" class="author-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Engineered with precision by <strong>Abhishek Raha</strong></span>
+          </a>
+        </div>
+
+        <div class="footer-col">
+          <h5>Vault Architecture</h5>
+          <ul>
+            <li><a href="#features">Argon2id KDF</a></li>
+            <li><a href="#features">Two-Tier Envelope</a></li>
+            <li><a href="#features">SecureBuffer Zeroing</a></li>
+            <li><a href="#features">SQLite WAL Engine</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Capabilities</h5>
+          <ul>
+            <li><a href="#features">RFC 6238 TOTP 2FA</a></li>
+            <li><a href="#features">HaveIBeenPwned Audit</a></li>
+            <li><a href="#features">Blind Indexing</a></li>
+            <li><a href="#quickstart">Interactive CLI</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>Open Source</h5>
+          <ul>
+            <li><a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener">GitHub Repository</a></li>
+            <li><a href="https://github.com/abhishekraha/SimpleCredentialManager/releases" target="_blank" rel="noopener">Release Downloads</a></li>
+            <li><a href="https://github.com/abhishekraha/SimpleCredentialManager/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+            <li><a href="https://abhishekraha.github.io/AbhishekRaha" target="_blank" rel="noopener">Author Portfolio</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>
+          &copy; 2026 Simple Credential Manager (SCM). Released under the MIT License.
+        </div>
+        <div class="footer-badges">
+          <a href="https://github.com/abhishekraha/SimpleCredentialManager/blob/main/LICENSE" target="_blank" rel="noopener">
+            <img src="https://img.shields.io/badge/License-MIT-emerald?style=flat-square&color=10b981" alt="MIT License">
+          </a>
+          <a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener">
+            <img src="https://img.shields.io/badge/Python-3.12+-06b6d4?style=flat-square" alt="Python 3.12+">
+          </a>
+          <a href="https://github.com/abhishekraha/SimpleCredentialManager" target="_blank" rel="noopener">
+            <img src="https://img.shields.io/badge/Storage-Zero--Cloud-34d399?style=flat-square" alt="Zero Cloud">
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Tech Badge Interactive Explainer Modal -->
+  <div id="techModal" class="tech-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalSubtitle" aria-hidden="true">
+    <div class="tech-modal-backdrop" data-close-modal></div>
+    <div class="tech-modal-container">
+      <div class="tech-modal-card">
+        <!-- Modal Top Bar -->
+        <div class="tech-modal-header">
+          <div class="tech-modal-tagline">
+            <span class="modal-status-dot"></span>
+            <span id="modalSpecCategory" class="modal-spec-category">CRYPTOGRAPHIC SPECIFICATION</span>
+          </div>
+          <button type="button" class="tech-modal-close" data-close-modal aria-label="Close dialog">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Main Title & Badge Display -->
+        <div class="tech-modal-hero">
+          <div id="modalIcon" class="modal-icon-badge"></div>
+          <div>
+            <h3 id="modalTitle" class="modal-title">Specification</h3>
+            <p id="modalSubtitle" class="modal-subtitle">Technical Deep Dive & Cryptographic Assurance</p>
+          </div>
+        </div>
+
+        <!-- Three Core Pillars (What, Why, How) -->
+        <div class="tech-modal-content">
+          <div class="modal-block">
+            <div class="modal-block-header">
+              <span class="block-number">01</span>
+              <h4>What It Is</h4>
+            </div>
+            <p id="modalWhat" class="modal-block-text"></p>
+          </div>
+
+          <div class="modal-block">
+            <div class="modal-block-header">
+              <span class="block-number">02</span>
+              <h4>Why It Matters (Threat Model &amp; Defense)</h4>
+            </div>
+            <p id="modalWhy" class="modal-block-text"></p>
+          </div>
+
+          <div class="modal-block">
+            <div class="modal-block-header">
+              <span class="block-number">03</span>
+              <h4>How SCM Implements It</h4>
+            </div>
+            <p id="modalHow" class="modal-block-text"></p>
+            <div id="modalCodeSnippet" class="modal-code-wrapper" style="display: none;">
+              <div class="modal-code-header">
+                <span class="modal-code-label">SCM Architecture Blueprint</span>
+                <button type="button" class="copy-btn" id="modalCopyCodeBtn" onclick="copyModalCode()">Copy</button>
+              </div>
+              <pre><code id="modalCodeText"></code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="tech-modal-footer">
+          <div class="modal-footer-nav">
+            <button type="button" class="btn btn-outline modal-nav-btn" id="modalPrevBtn" aria-label="Previous tech specification">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              <span>Prev</span>
+            </button>
+            <button type="button" class="btn btn-outline modal-nav-btn" id="modalNextBtn" aria-label="Next tech specification">
+              <span>Next</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+          <button type="button" class="btn btn-secondary" data-close-modal>
+            <span>Close (Esc)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/script.js"></script>
+</body>
+</html>

@@ -20,13 +20,29 @@ class ChangeMasterPasswordTests(unittest.TestCase):
                              self.temp_path / "metadata.json")
         self.patcher2 = patch("dev.abhishekraha.secretmanager.config.SecretManagerConfig.SECRET_FILE",
                              self.temp_path / "vault.bin")
+        self.patcher3 = patch("dev.abhishekraha.secretmanager.core.SecretManagerService.SECRET_MANAGER_META_DATA",
+                             self.temp_path / "metadata.json")
+        self.patcher4 = patch("dev.abhishekraha.secretmanager.core.SecretManagerService.SECRET_FILE",
+                             self.temp_path / "vault.bin")
+        self.patcher5 = patch("dev.abhishekraha.secretmanager.config.SecretManagerConfig.VAULT_DB_FILE",
+                             self.temp_path / "vault.scmdb")
+        self.patcher6 = patch("dev.abhishekraha.secretmanager.core.SecretManagerService.VAULT_DB_FILE",
+                             self.temp_path / "vault.scmdb")
         self.patcher1.start()
         self.patcher2.start()
+        self.patcher3.start()
+        self.patcher4.start()
+        self.patcher5.start()
+        self.patcher6.start()
 
     def tearDown(self):
         """Clean up patches and temp directory."""
         self.patcher1.stop()
         self.patcher2.stop()
+        self.patcher3.stop()
+        self.patcher4.stop()
+        self.patcher5.stop()
+        self.patcher6.stop()
         CodecUtils.clear_derived_key()
         self.temp_dir.cleanup()
 

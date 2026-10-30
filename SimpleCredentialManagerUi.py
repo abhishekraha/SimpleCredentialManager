@@ -4,7 +4,7 @@ import time
 import webbrowser
 from pathlib import Path
 from secrets import randbelow
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from urllib.parse import urlparse
 
 from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
@@ -386,6 +386,8 @@ class SimpleCredentialManagerUi(tk.Tk):
         style.configure("FooterVersion.TLabel", font=("Segoe UI", 9, "bold"))
         style.configure("FooterVersionWarning.TLabel", font=("Segoe UI", 9, "bold"), foreground="#b58900")
         style.configure("FooterVersionStale.TLabel", font=("Segoe UI", 9, "bold"), foreground="#c0392b")
+        style.configure("Danger.TButton", foreground="#ffffff", background="#c0392b")
+        style.map("Danger.TButton", background=[("active", "#a93226"), ("pressed", "#922b21")])
 
     def _bootstrap(self):
         try:
@@ -416,6 +418,10 @@ class SimpleCredentialManagerUi(tk.Tk):
             text=f"{APP_NAME} {APP_VERSION}",
             style="Title.TLabel",
         ).pack(anchor="w", pady=(0, 20))
+
+        header_bar = ttk.Frame(self.content)
+        header_bar.pack(fill="x", pady=(0, 10))
+        ttk.Button(header_bar, text="Switch to Modern UI", command=self._switch_to_modern_ui).pack(side="right")
 
         card = ttk.Frame(self.content, padding=20)
         card.pack(anchor="center", expand=True)
@@ -460,6 +466,10 @@ class SimpleCredentialManagerUi(tk.Tk):
             style="Title.TLabel",
         ).pack(anchor="w", pady=(0, 20))
 
+        header_bar = ttk.Frame(self.content)
+        header_bar.pack(fill="x", pady=(0, 10))
+        ttk.Button(header_bar, text="Switch to Modern UI", command=self._switch_to_modern_ui).pack(side="right")
+
         card = ttk.Frame(self.content, padding=20)
         card.pack(anchor="center", expand=True)
 
@@ -477,6 +487,13 @@ class SimpleCredentialManagerUi(tk.Tk):
         unlock_button = ttk.Button(card, text="Unlock")
         unlock_button.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
 
+        wipe_button = ttk.Button(
+            card,
+            text="Reset Vault & Wipe Data...",
+            style="Danger.TButton",
+            command=self._confirm_and_wipe_vault,
+        )
+
         def submit_login():
             success, message = self.service.authenticate(password_entry.get())
             if success:
@@ -485,21 +502,55 @@ class SimpleCredentialManagerUi(tk.Tk):
                 return
             helper_var.set(message)
             password_entry.delete(0, "end")
-            self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+            self._refresh_lockout_state(password_entry, unlock_button, helper_var, wipe_button)
 
         unlock_button.configure(command=submit_login)
         password_entry.bind("<Return>", lambda _event: submit_login())
         password_entry.focus_set()
-        self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+        self._refresh_lockout_state(password_entry, unlock_button, helper_var, wipe_button)
 
-    def _refresh_lockout_state(self, password_entry, unlock_button, helper_var):
+    def _confirm_and_wipe_vault(self):
+        confirmed = messagebox.askyesno(
+            "Wipe Vault Confirmation",
+            "Are you sure you want to wipe out all credentials and start fresh?\n\n"
+            "This action is permanent and cannot be undone!",
+            parent=self,
+            icon="warning",
+        )
+        if not confirmed:
+            return
+
+        typed = simpledialog.askstring(
+            "Confirm Vault Wipe",
+            "This will permanently delete all stored credentials!\n\n"
+            "Type 'WIPE' to confirm:",
+            parent=self,
+        )
+        if typed == "WIPE":
+            self.service.reset_vault_and_wipe_all()
+            messagebox.showinfo("Vault Reset", "Vault has been reset.", parent=self)
+            self._show_initial_setup_screen()
+
+    def _show_initial_setup_screen(self):
+        self._show_setup_screen()
+
+    def _refresh_lockout_state(self, password_entry, unlock_button, helper_var, wipe_button=None):
         status = self.service.get_lockout_status()
-        if status["is_locked_out"]:
+        is_locked = status["is_locked_out"]
+        failed_attempts = status["failed_attempts"]
+
+        if wipe_button is not None:
+            if is_locked or failed_attempts >= 3:
+                wipe_button.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            else:
+                wipe_button.grid_remove()
+
+        if is_locked:
             helper_var.set(f"Temporary lockout active. Try again in {status['remaining_seconds']} second(s).")
             password_entry.configure(state="disabled")
             unlock_button.configure(state="disabled")
             self.lockout_timer_id = self.after(
-                1000, lambda: self._refresh_lockout_state(password_entry, unlock_button, helper_var)
+                1000, lambda: self._refresh_lockout_state(password_entry, unlock_button, helper_var, wipe_button)
             )
             return
         password_entry.configure(state="normal")
@@ -518,6 +569,7 @@ class SimpleCredentialManagerUi(tk.Tk):
         header.pack(fill="x", pady=(0, 16))
         ttk.Label(header, text=f"{APP_NAME} {APP_VERSION}", style="Title.TLabel").pack(side="left")
         ttk.Button(header, text="Lock", command=self._lock_and_return_to_login).pack(side="right")
+        ttk.Button(header, text="Switch to Modern UI", command=self._switch_to_modern_ui).pack(side="right", padx=(0, 8))
 
         toolbar = ttk.Frame(self.content)
         toolbar.pack(fill="x", pady=(0, 16))
@@ -997,7 +1049,9 @@ class SimpleCredentialManagerUi(tk.Tk):
     def _format_datetime(self, value):
         if not value:
             return "-"
-        return value.strftime("%Y-%m-%d %H:%M:%S")
+        if hasattr(value, "strftime"):
+            return value.strftime("%Y-%m-%d %H:%M:%S")
+        return str(value).replace("T", " ")[:19]
 
     def _show_transient_popup(self, message):
         if self.toast_popup is not None and self.toast_popup.winfo_exists():
@@ -1022,6 +1076,13 @@ class SimpleCredentialManagerUi(tk.Tk):
 
     def _copy_text_to_clipboard(self, value):
         clipboard_text = "" if value is None else str(value)
+        try:
+            from dev.abhishekraha.secretmanager.utils.SecureClipboardManager import SecureClipboardManager
+            if SecureClipboardManager.copy(clipboard_text, clear_timeout_seconds=30):
+                return True
+        except Exception:
+            pass
+
         try:
             self.clipboard_clear()
             self.clipboard_append(clipboard_text)
@@ -1203,6 +1264,29 @@ class SimpleCredentialManagerUi(tk.Tk):
             return ""
         return "*" * (12 + randbelow(9))
 
+    def _switch_to_modern_ui(self):
+        self.service.set_ui_preference("modern")
+        restart_now = messagebox.askyesno(
+            "UI Preference Changed",
+            "UI preference saved. Please restart the application to apply the new interface.\n\n"
+            "Would you like to restart immediately?",
+            parent=self,
+        )
+        if restart_now:
+            import os
+            import subprocess
+            import sys
+            self._stop_idle_monitoring()
+            self.service.lock_vault()
+            self.destroy()
+            filtered_args = [arg for arg in sys.argv[1:] if arg not in ("--classic", "--tkinter", "--modern")]
+            if getattr(sys, "frozen", False):
+                subprocess.Popen([sys.executable] + filtered_args + ["--modern"])
+            else:
+                main_script = os.path.abspath(sys.argv[0])
+                subprocess.Popen([sys.executable, main_script] + filtered_args + ["--modern"])
+            sys.exit(0)
+
     def _handle_close(self):
         if self.update_install_in_progress:
             messagebox.showinfo(
@@ -1217,6 +1301,45 @@ class SimpleCredentialManagerUi(tk.Tk):
 
 
 def main():
+    import sys
+    from dev.abhishekraha.secretmanager.ui import is_pyside6_available, run_modern_ui
+
+    service = SecretManagerService(client_name="UI-Bootstrap")
+    try:
+        preferred_ui = service.get_ui_preference()
+    except Exception:
+        preferred_ui = "modern"
+
+    # Command line flag overrides
+    if "--tkinter" in sys.argv or "--classic" in sys.argv:
+        preferred_ui = "classic"
+    elif "--modern" in sys.argv:
+        preferred_ui = "modern"
+
+    if preferred_ui == "modern":
+        if is_pyside6_available():
+            try:
+                return run_modern_ui()
+            except Exception as exc:
+                print(f"Warning: Failed to launch Modern UI ({exc}), falling back to standard UI...")
+        else:
+            # PySide6 is missing in environment
+            msg = (
+                "The Modern UI requires PySide6, which is not currently installed.\n\n"
+                "Please run: pip install PySide6\n\n"
+                "To launch the Classic Tkinter UI instead, use the --tkinter flag or set preferred_ui to 'classic'."
+            )
+            try:
+                import tkinter.messagebox as mb
+                root = tk.Tk()
+                root.withdraw()
+                mb.showerror("Missing Dependency - PySide6", msg)
+                root.destroy()
+            except Exception:
+                pass
+            print(f"ERROR: {msg}", file=sys.stderr)
+            sys.exit(1)
+
     app = SimpleCredentialManagerUi()
     app.mainloop()
 

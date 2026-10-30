@@ -87,7 +87,7 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
             status["download_url"],
         )
 
-    def test_check_for_updates_marks_release_as_stale_after_threshold(self):
+    def test_check_for_updates_does_not_mark_as_stale_when_on_latest_version(self):
         release_payload = {
             "tag_name": "v2.0.3",
             "html_url": "https://github.com/example/releases/v2.0.3",
@@ -109,8 +109,34 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
                 status = service.check_for_updates()
 
         self.assertFalse(status["update_available"])
+        self.assertFalse(status["is_stale"])
+        self.assertEqual("normal", service.get_release_indicator(status))
+        self.assertEqual([], service.build_cli_warning_lines(status))
+
+    def test_check_for_updates_marks_release_as_stale_when_newer_and_exceeds_threshold(self):
+        release_payload = {
+            "tag_name": "v2.0.4",
+            "html_url": "https://github.com/example/releases/v2.0.4",
+            "zipball_url": "https://api.github.com/repos/example/project/zipball/v2.0.4",
+            "published_at": (datetime.now(timezone.utc) - timedelta(days=45)).isoformat(),
+        }
+
+        service = ReleaseUpdateService(
+            current_version="v2.0.3",
+            cache_file="ignored-cache.json",
+            stale_after_days=30,
+        )
+
+        with patch.object(service, "_save_cached_payload"):
+            with patch(
+                "dev.abhishekraha.secretmanager.core.ReleaseUpdateService.urlopen",
+                return_value=_FakeHttpResponse(release_payload),
+            ):
+                status = service.check_for_updates()
+
+        self.assertTrue(status["update_available"])
         self.assertTrue(status["is_stale"])
-        self.assertEqual("stale", service.get_release_indicator(status))
+        self.assertEqual("update", service.get_release_indicator(status))
 
     def test_cached_release_status_is_used_when_network_fetch_fails(self):
         checked_at = datetime.now(timezone.utc).isoformat()
@@ -151,7 +177,7 @@ class ReleaseUpdateServiceTests(unittest.TestCase):
             }
         )
 
-        install_root = Path.cwd() / "tests" / f"_tmp_install_root_{uuid4().hex}"
+        install_root = Path.cwd() / "tests" / f"_tmp_{uuid4().hex[:8]}"
         self.addCleanup(lambda: shutil.rmtree(install_root, ignore_errors=True))
 
         install_root.mkdir(parents=True, exist_ok=True)

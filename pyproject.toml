@@ -1,0 +1,112 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "simple-credential-manager"
+version = "3.0.0"
+description = "Secure, offline-first personal credential manager with dual Desktop GUI and modern CLI interfaces."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Abhishek Raha" }
+]
+keywords = [
+    "credential-manager",
+    "password-manager",
+    "security",
+    "cryptography",
+    "cli",
+    "totp",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security :: Cryptography",
+]
+
+dependencies = [
+    "cryptography>=41.0.0",
+    "pwinput>=1.0.3",
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "pyotp>=2.8.0",
+    "PySide6>=6.5.0",
+]
+
+[project.optional-dependencies]
+argon2 = [
+    "argon2-cffi>=23.1.0",
+]
+gui = [
+    # Desktop Tkinter GUI uses standard library tkinter
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.4.0",
+    "mypy>=1.9.0",
+    "pyinstaller>=6.0.0",
+    "types-cryptography",
+]
+
+[project.scripts]
+scm = "dev.abhishekraha.secretmanager.cli.ModernCli:main"
+scm-gui = "SimpleCredentialManagerUi:main"
+
+[project.urls]
+Homepage = "https://github.com/abhishekraha/SimpleCredentialManager"
+Documentation = "https://github.com/abhishekraha/SimpleCredentialManager#readme"
+Repository = "https://github.com/abhishekraha/SimpleCredentialManager.git"
+Issues = "https://github.com/abhishekraha/SimpleCredentialManager/issues"
+Changelog = "https://github.com/abhishekraha/SimpleCredentialManager/blob/master/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dev"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C4",  # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line length handled by black/formatter
+    "B008",  # do not perform function calls in argument defaults (standard Typer Depends/Option pattern)
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["*Tests", "*Test"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"
