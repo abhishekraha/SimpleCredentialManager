@@ -90,6 +90,7 @@ jobs:
           python -m pip install -r requirements.txt pyinstaller
 
       - name: Build Standalone CLI Binary
+        shell: bash
         run: |
           pyinstaller --clean --noconfirm --onefile \
             --name scm \
@@ -103,6 +104,7 @@ jobs:
             SimpleCredentialManagerCli.py
 
       - name: Build Standalone Desktop UI Binary
+        shell: bash
         run: |
           pyinstaller --clean --noconfirm --onefile \
             --name SimpleCredentialManagerUi \
