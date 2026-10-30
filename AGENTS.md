@@ -8,10 +8,16 @@ This document details the system design, cryptographic implementation, storage m
 
 Simple Credential Manager provides a multi-interface architecture:
 - **Presentation Layer**:
-  - **Modern Desktop UI** (`PySide6` / Qt 6) with 3-pane layout, dark/light theme, TOTP countdown arc widget, and password health auditing.
+  - **Modern Desktop UI & Multi-Surface Presentation** (`PySide6` / Qt 6):
+    - **Floating Command Palette** (`CommandPaletteDialog.py`): Raycast/Spotlight-style borderless search window summonable via global hotkey (`Ctrl+Shift+Space`), Enter-to-copy password with 30s auto-wipe, auto-dismiss on blur.
+    - **System Tray Daemon** (`SystemTrayManager.py`): Persistent icon with live TOTP countdowns, one-click vault lock, and in-place backend switching.
+    - **Full Management Window** (`ModernMainWindow.py`): 3-pane layout, dark/light theme, TOTP countdown arc widget, and password health auditing.
   - **Modern Interactive & Headless CLI** (`Typer` + `Rich`) supporting styled tables, subcommands (`interactive`, `list`, `get`, `add`, `totp`, `health`, `server`), and scriptable headless JSON output.
   - **Modern Web Dashboard & Server Mode** (`FastAPI` + `Uvicorn` + WebCrypto) with out-of-band device whitelisting, subtle 404 unauthorized defense, transport payload encryption, and reverse-proxy subpath support.
   - **Classic Fallback Interfaces**: Legacy Tkinter GUI (`--classic` / `--tkinter`) and numbered legacy CLI (`--legacy`).
+- **Provider Abstraction Seam**: `VaultDataProvider` protocol decoupling presentation from persistence.
+  - `LocalVaultProvider`: Wraps `SecretManagerService` for local SQLite WAL database operations.
+  - `RemoteVaultProvider`: Communicates with remote SCM server daemon using client-side AES-256-GCM transport payload encryption, device enrollment tokens, and strict zero-trace offline defense.
 - **Business Logic Layer**: `SecretManagerService` as the single authoritative facade for credentials, auth, lockouts, import/export, and audit logging.
 - **Storage Layer**: Dual-storage engine supporting high-performance row-level SQLite WAL database (`vault.scmdb`) and legacy file SerDe (`.simpleCredentialManager.secret` / `.simpleCredentialManager.metadata`).
 

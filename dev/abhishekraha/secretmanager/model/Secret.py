@@ -60,6 +60,90 @@ class Secret:
     def get_password(self):
         return self._password
 
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def username(self):
+        return self._username
+
+    @username.setter
+    def username(self, value):
+        self._username = value
+
+    @property
+    def password(self):
+        return self._password
+
+    @password.setter
+    def password(self, value):
+        self._password = value
+
+    @property
+    def url(self):
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        self._url = value
+
+    @property
+    def comments(self):
+        return self._comments
+
+    @comments.setter
+    def comments(self, value):
+        self._comments = value
+
+    @property
+    def category(self):
+        return self._category
+
+    @category.setter
+    def category(self, value):
+        self._category = value
+
+    @property
+    def favorite(self):
+        return self._favorite
+
+    @favorite.setter
+    def favorite(self, value):
+        self._favorite = bool(value)
+
+    @property
+    def totp_secret(self):
+        return self._totp_secret
+
+    @totp_secret.setter
+    def totp_secret(self, value):
+        self._totp_secret = value
+
+    @property
+    def tags(self):
+        return list(self._tags)
+
+    @tags.setter
+    def tags(self, value):
+        self._tags = list(value) if value else []
+
+    @property
+    def create_date(self):
+        return self._create_date
+
+    @property
+    def update_date(self):
+        return self._update_date
+
+    def has_totp(self):
+        return bool(self._totp_secret and str(self._totp_secret).strip())
+
+
     def set_url(self, url):
         self._url = url
 

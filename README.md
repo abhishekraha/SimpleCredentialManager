@@ -100,10 +100,26 @@ Designed for self-hosted home labs, VPS instances, or remote access behind Nginx
 
 ## User Interfaces
 
-### 1. Modern Desktop UI
+### 1. Modern Desktop UI & Multi-Surface Presentation
 Built with PySide6:
-- **Master Password Prompt On Open**: Prompts for master password entry before revealing any vault data.
-- **3-Pane Layout**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, and comprehensive details panel.
+- **3 Presentation Surfaces**:
+  - **Floating Command Palette** (`Ctrl+Shift+Space`): Spotlight/Raycast-style borderless search box centered on the active screen where your cursor is located. Sub-second fuzzy search, Enter to copy password with 30s auto-wipe, `Ctrl+T` to copy TOTP, `Ctrl+O` to open full detail view.
+  - **Persistent System Tray Daemon**: Stays minimized in your notification tray with live status, one-click vault lock, and in-place backend switching.
+  - **Full 3-Pane Workstation Window**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, details panel, and TOTP countdown arc widget.
+- **Local & Remote Server Dual Backend**:
+  ```bash
+  # Launch default 3-pane local workstation management window
+  python SimpleCredentialManagerUi.py
+
+  # Launch floating command palette directly (summonable anytime via Ctrl+Shift+Space)
+  python SimpleCredentialManagerUi.py --palette
+
+  # Launch minimized to system tray daemon
+  python SimpleCredentialManagerUi.py --tray
+
+  # Connect desktop client to a remote SCM server daemon over encrypted transport
+  python SimpleCredentialManagerUi.py --remote https://your-server-host:8080
+  ```
 - **Integrated TOTP Arc**: Live countdown animation and one-click TOTP token copying.
 - **Password Generator & Health Audit**: Live entropy scores, duplicate detection, and optional HaveIBeenPwned k-anonymity leak audits.
 - **Theme Switcher**: Button in the sidebar to toggle between Modern UI and Classic Tkinter UI.

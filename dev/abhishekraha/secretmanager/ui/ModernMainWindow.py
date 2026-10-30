@@ -49,7 +49,9 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import SESSION_ID
 from dev.abhishekraha.secretmanager.core.PasswordHealthService import PasswordHealthService
 from dev.abhishekraha.secretmanager.core.SecretManagerService import SecretManagerService
 from dev.abhishekraha.secretmanager.core.TotpService import TotpService
+from dev.abhishekraha.secretmanager.core.VaultDataProvider import VaultDataProvider
 from dev.abhishekraha.secretmanager.model.Secret import Secret
+from dev.abhishekraha.secretmanager.providers.LocalVaultProvider import LocalVaultProvider
 from dev.abhishekraha.secretmanager.ui.ModernAuthDialog import ModernAuthDialog
 from dev.abhishekraha.secretmanager.ui.Themes import DARK_THEME_QSS, LIGHT_THEME_QSS
 from dev.abhishekraha.secretmanager.ui.TotpCountdownWidget import TotpCountdownWidget
@@ -62,12 +64,25 @@ class ModernMainWindow(QMainWindow):
     PySide6 Modern 3-Pane Application Window for Simple Credential Manager.
     """
 
-    def __init__(self, service=None, parent=None):
+    def __init__(self, service=None, provider=None, parent=None):
         if not HAS_QT:
             raise ImportError("PySide6 is required to instantiate ModernMainWindow.")
 
         super().__init__(parent)
-        self.service = service or SecretManagerService(client_name="Modern-UI")
+        # Accept provider or service; provider takes precedence, defaults to LocalVaultProvider
+        if provider is not None:
+            self.provider = provider
+        elif service is not None:
+            if isinstance(service, VaultDataProvider):
+                self.provider = service
+            else:
+                self.provider = LocalVaultProvider(service=service)
+        else:
+            self.provider = LocalVaultProvider()
+
+        # Backward compatibility alias
+        self.service = self.provider
+
         self.is_dark_mode = True
         self.current_filter = "all"
         self.current_secret = None
@@ -78,12 +93,56 @@ class ModernMainWindow(QMainWindow):
         self.setMinimumSize(850, 550)
 
         self._init_ui()
+        self._update_status_bar()
         self._apply_theme()
         self._init_timer()
-        if not self.service.is_unlocked():
+        if not self.provider.is_unlocked():
             self._prompt_unlock_inline()
         else:
             self.refresh_vault()
+
+    def set_provider(self, provider: VaultDataProvider) -> None:
+        """Dynamically switches the active vault backend provider."""
+        self.provider = provider
+        self.service = provider
+        self._update_status_bar()
+        if self.provider.is_unlocked():
+            self.refresh_vault()
+        else:
+            self.current_secret = None
+            self.secret_list.clear()
+            self.items_count_label.setText("0 items")
+            self.detail_stack.setCurrentWidget(self.empty_view_widget)
+
+    def _update_status_bar(self) -> None:
+        """Updates the status bar indicator showing current mode."""
+        from dev.abhishekraha.secretmanager.providers.RemoteVaultProvider import RemoteVaultProvider
+        if isinstance(self.provider, RemoteVaultProvider) or "Remote" in type(self.provider).__name__:
+            client = getattr(self.provider, "client", None)
+            server_url = getattr(client, "server_url", "remote") if client else "remote"
+            mode_text = f"[Mode: Remote Server: {server_url}]"
+        else:
+            mode_text = "[Mode: Local DB]"
+        self.statusBar().showMessage(mode_text)
+
+    def open_secret_detail(self, secret_name: str) -> None:
+        """Selects and displays a secret in the 3-pane layout, bringing window to front."""
+        self.show()
+        self.activateWindow()
+        self.raise_()
+
+        # Find in secret list or fetch directly
+        for row in range(self.secret_list.count()):
+            item = self.secret_list.item(row)
+            if item and item.data(Qt.UserRole) == secret_name:
+                self.secret_list.setCurrentRow(row)
+                return
+
+        # If not present in current list filter, fetch from provider
+        sec = self.provider.get_secret(secret_name)
+        if sec:
+            self.current_secret = sec
+            self._display_secret(sec)
 
     def _init_ui(self):
         self.central_widget = QWidget(self)
@@ -428,7 +487,7 @@ class ModernMainWindow(QMainWindow):
                 self.totp_code_label.setText("Invalid Secret")
 
         # Inactivity auto-lock check
-        if self.service.is_unlocked():
+        if self.provider.is_unlocked():
             elapsed = (datetime.now() - self._last_activity_time).total_seconds()
             if elapsed >= SESSION_IDLE_LOCK_SECONDS:
                 self._lock_vault()
@@ -447,15 +506,15 @@ class ModernMainWindow(QMainWindow):
     def closeEvent(self, event):
         if hasattr(self, "timer") and self.timer:
             self.timer.stop()
-        self.service.lock_vault()
+        self.provider.lock_vault()
         super().closeEvent(event)
 
     # ------------------ DATA & FILTERING ------------------
     def refresh_vault(self):
-        if not self.service.is_unlocked():
+        if not self.provider.is_unlocked():
             return
 
-        all_secrets = self.service.get_secret_records()
+        all_secrets = self.provider.get_secret_records()
         search_query = self.search_input.text().strip().lower()
 
         filtered = []
@@ -512,13 +571,13 @@ class ModernMainWindow(QMainWindow):
         self.refresh_vault()
 
     def _on_secret_selected(self, row):
-        if row < 0 or not self.service.is_unlocked():
+        if row < 0 or not self.provider.is_unlocked():
             return
         item = self.secret_list.item(row)
         if not item:
             return
         secret_name = item.data(Qt.UserRole)
-        self.current_secret = self.service.get_secret(secret_name)
+        self.current_secret = self.provider.get_secret(secret_name)
         if not self.current_secret:
             return
 
@@ -566,7 +625,10 @@ class ModernMainWindow(QMainWindow):
         self.setStyleSheet(qss)
 
     def _switch_to_classic_ui(self):
-        self.service.set_ui_preference("classic")
+        if hasattr(self.provider, "set_ui_preference"):
+            self.provider.set_ui_preference("classic")
+        elif hasattr(getattr(self.provider, "service", None), "set_ui_preference"):
+            self.provider.service.set_ui_preference("classic")
         msg = QMessageBox(self)
         msg.setWindowTitle("UI Preference Changed")
         msg.setText("UI preference saved. Please restart the application to apply the new interface.")
@@ -579,7 +641,7 @@ class ModernMainWindow(QMainWindow):
         if msg.clickedButton() == restart_btn:
             if hasattr(self, "timer") and self.timer:
                 self.timer.stop()
-            self.service.lock_vault()
+            self.provider.lock_vault()
             self.close()
             # Launch classic UI process or restart executable
             import os
@@ -597,7 +659,7 @@ class ModernMainWindow(QMainWindow):
         Locks the vault, clears session data and widget displays,
         and prompts the user to re-authenticate without terminating the app.
         """
-        self.service.lock_vault()
+        self.provider.lock_vault()
         self.current_secret = None
         self.secret_list.clear()
         self.items_count_label.setText("0 items")
@@ -611,7 +673,7 @@ class ModernMainWindow(QMainWindow):
         Shows the authentication dialog. If authenticated, loads secrets.
         If user cancels, closes the main window and exits.
         """
-        auth_dialog = ModernAuthDialog(service=self.service, parent=self)
+        auth_dialog = ModernAuthDialog(service=self.provider, parent=self)
         if auth_dialog.exec() == QDialog.Accepted and auth_dialog.authenticated:
             self._last_activity_time = datetime.now()
             self.refresh_vault()
@@ -705,11 +767,11 @@ class ModernMainWindow(QMainWindow):
         if not self.current_secret:
             return
         new_fav = not self.current_secret.is_favorite()
-        self.service.update_secret(
+        self.provider.update_secret(
             original_name=self.current_secret.get_name(),
             is_favorite=new_fav,
         )
-        self.current_secret = self.service.get_secret(self.current_secret.get_name())
+        self.current_secret = self.provider.get_secret(self.current_secret.get_name())
         self.fav_btn.setText("★" if (self.current_secret and self.current_secret.is_favorite()) else "☆")
         self.refresh_vault()
 
@@ -723,16 +785,16 @@ class ModernMainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No,
         )
         if confirm == QMessageBox.Yes:
-            self.service.delete_secret(self.current_secret.get_name())
+            self.provider.delete_secret(self.current_secret.get_name())
             self.current_secret = None
             self.refresh_vault()
 
     def _open_new_secret_dialog(self):
         from dev.abhishekraha.secretmanager.ui.SecretEditorQtDialog import SecretEditorQtDialog
-        dialog = SecretEditorQtDialog(self, title="New Secret", service=self.service)
+        dialog = SecretEditorQtDialog(self, title="New Secret", service=self.provider)
         if dialog.exec() == QDialog.Accepted and dialog.secret_data:
             data = dialog.secret_data
-            self.service.add_secret(
+            self.provider.add_secret(
                 name=data["name"],
                 username=data["username"],
                 password=data["password"],
@@ -749,11 +811,11 @@ class ModernMainWindow(QMainWindow):
         if not self.current_secret:
             return
         from dev.abhishekraha.secretmanager.ui.SecretEditorQtDialog import SecretEditorQtDialog
-        dialog = SecretEditorQtDialog(self, title="Edit Secret", secret=self.current_secret, service=self.service)
+        dialog = SecretEditorQtDialog(self, title="Edit Secret", secret=self.current_secret, service=self.provider)
         if dialog.exec() == QDialog.Accepted and dialog.secret_data:
             data = dialog.secret_data
             target_name = data.get("name") or self.current_secret.get_name()
-            self.service.update_secret(
+            self.provider.update_secret(
                 original_name=self.current_secret.get_name(),
                 new_name=target_name,
                 username=data["username"],
@@ -765,12 +827,12 @@ class ModernMainWindow(QMainWindow):
                 totp_secret=data.get("totp_secret", ""),
                 tags=data.get("tags", []),
             )
-            self.current_secret = self.service.get_secret(target_name)
+            self.current_secret = self.provider.get_secret(target_name)
             self._display_secret(self.current_secret)
             self.refresh_vault()
 
     def _run_vault_audit(self, check_breaches=False, async_worker=True):
-        secrets = self.service.get_secret_records()
+        secrets = self.provider.get_secret_records()
         if not secrets:
             self.score_label.setText("Score: -- / 100")
             self.health_bar.setRange(0, 100)

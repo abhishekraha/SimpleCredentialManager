@@ -1300,26 +1300,52 @@ class SimpleCredentialManagerUi(tk.Tk):
         self.destroy()
 
 
+def parse_arguments(argv=None):
+    """Parses CLI flags for Simple Credential Manager UI surfaces."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Simple Credential Manager Desktop Client")
+    parser.add_argument("--remote", type=str, default=None, help="Remote SCM server URL (e.g., https://server:8080)")
+    parser.add_argument("--palette", action="store_true", help="Launch directly into Command Palette")
+    parser.add_argument("--tray", action="store_true", help="Launch minimized to System Tray")
+    parser.add_argument("--tkinter", action="store_true", help="Force classic Tkinter UI")
+    parser.add_argument("--classic", action="store_true", help="Force classic Tkinter UI")
+    parser.add_argument("--modern", action="store_true", help="Force modern PySide6 UI")
+
+    return parser.parse_args(argv)
+
+
 def main():
     import sys
     from dev.abhishekraha.secretmanager.ui import is_pyside6_available, run_modern_ui
 
-    service = SecretManagerService(client_name="UI-Bootstrap")
-    try:
-        preferred_ui = service.get_ui_preference()
-    except Exception:
-        preferred_ui = "modern"
+    args = parse_arguments(sys.argv[1:])
 
-    # Command line flag overrides
-    if "--tkinter" in sys.argv or "--classic" in sys.argv:
+    preferred_ui = "modern"
+    if args.tkinter or args.classic:
         preferred_ui = "classic"
-    elif "--modern" in sys.argv:
+    elif args.modern or args.remote or args.palette or args.tray:
         preferred_ui = "modern"
+    else:
+        try:
+            service = SecretManagerService(client_name="UI-Bootstrap")
+            preferred_ui = service.get_ui_preference()
+        except Exception:
+            preferred_ui = "modern"
 
     if preferred_ui == "modern":
         if is_pyside6_available():
+            provider = None
+            if args.remote:
+                from dev.abhishekraha.secretmanager.providers.RemoteVaultProvider import RemoteVaultProvider
+                provider = RemoteVaultProvider(server_url=args.remote)
+
             try:
-                return run_modern_ui()
+                return run_modern_ui(
+                    provider=provider,
+                    start_palette=args.palette,
+                    start_tray=args.tray,
+                )
             except Exception as exc:
                 print(f"Warning: Failed to launch Modern UI ({exc}), falling back to standard UI...")
         else:
