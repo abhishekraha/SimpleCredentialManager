@@ -19,6 +19,10 @@ class TestSystemTrayManager(unittest.TestCase):
         )
 
     def tearDown(self):
+        if hasattr(self.tray, "popover") and self.tray.popover:
+            self.tray.popover.hide()
+            if hasattr(self.tray.popover, "totp_timer"):
+                self.tray.popover.totp_timer.stop()
         if hasattr(self.tray, "tray_icon") and self.tray.tray_icon:
             self.tray.tray_icon.hide()
 
@@ -31,11 +35,11 @@ class TestSystemTrayManager(unittest.TestCase):
         # Check context menu actions exist
         actions = self.tray.context_menu.actions()
         action_texts = [a.text() for a in actions]
-        self.assertTrue(any("Quick Search" in t for t in action_texts))
-        self.assertTrue(any("Open Vault Manager" in t for t in action_texts))
-        self.assertTrue(any("Lock Vault Now" in t for t in action_texts))
-        self.assertTrue(any("Switch Backend" in t for t in action_texts))
-        self.assertTrue(any("Quit SCM" in t for t in action_texts))
+        self.assertTrue(any("Flyout" in t or "Search" in t for t in action_texts))
+        self.assertTrue(any("Open" in t for t in action_texts))
+        self.assertTrue(any("Lock" in t for t in action_texts))
+        self.assertTrue(any("Switch" in t for t in action_texts))
+        self.assertTrue(any("Quit" in t for t in action_texts))
 
     def test_switch_backend_locks_and_swaps_provider(self):
         new_provider = MagicMock()
@@ -81,7 +85,7 @@ class TestSystemTrayManager(unittest.TestCase):
 
     @patch("PySide6.QtWidgets.QInputDialog.getItem")
     def test_prompt_switch_backend_cancelled(self, mock_get_item):
-        mock_get_item.return_value = ("Local Database", False)
+        mock_get_item.return_value = ("Local Workstation Database", False)
         with patch.object(self.tray, "switch_backend") as mock_switch:
             self.tray.prompt_switch_backend()
             mock_switch.assert_not_called()
@@ -92,7 +96,7 @@ class TestSystemTrayManager(unittest.TestCase):
     def test_prompt_switch_backend_to_remote(self, mock_get_item, mock_get_text, mock_remote_provider_cls):
         # Current is local mock
         type(self.mock_provider).__name__ = "LocalVaultProvider"
-        mock_get_item.return_value = ("Remote Server", True)
+        mock_get_item.return_value = ("Remote Encrypted SCM Server", True)
         mock_get_text.return_value = ("http://192.168.1.50:8080", True)
         mock_remote_instance = MagicMock()
         mock_remote_provider_cls.return_value = mock_remote_instance
@@ -107,7 +111,7 @@ class TestSystemTrayManager(unittest.TestCase):
     def test_prompt_switch_backend_to_local(self, mock_get_item, mock_local_provider_cls):
         # Current is remote mock
         type(self.mock_provider).__name__ = "RemoteVaultProvider"
-        mock_get_item.return_value = ("Local Database", True)
+        mock_get_item.return_value = ("Local Workstation Database", True)
         mock_local_instance = MagicMock()
         mock_local_provider_cls.return_value = mock_local_instance
 

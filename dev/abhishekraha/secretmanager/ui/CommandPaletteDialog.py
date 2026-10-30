@@ -1,7 +1,7 @@
 """
 CommandPaletteDialog: Floating, frameless, keyboard-driven command palette for Simple Credential Manager.
-Summonable via a global hotkey, auto-dismisses on focus loss or Escape,
-and enables sub-second credential search and copy.
+Summonable via global hotkey (Ctrl+Shift+Space), auto-dismisses on focus loss or Escape,
+and enables sub-second credential search and copy with high-contrast Slate 900 styling.
 """
 
 from typing import Optional
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QGraphicsDropShadowEffect,
     QWidget,
+    QFrame,
 )
 
 from dev.abhishekraha.secretmanager.core.TotpService import TotpService
@@ -30,6 +31,7 @@ class CommandPaletteDialog(QDialog):
     """
     Floating command palette providing instant fuzzy/text search,
     one-key password copy, TOTP copy, and navigation to the full manager.
+    Styled with the elegant Slate 900 / Sky 400 design system.
     """
 
     open_full_window_requested = Signal(str)
@@ -42,14 +44,14 @@ class CommandPaletteDialog(QDialog):
         # Configure window flags & translucent background
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(600)
+        self.setFixedWidth(640)
 
         self._init_ui()
         self.reload_records()
 
     def _init_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(12, 12, 12, 12)
+        outer_layout.setContentsMargins(14, 14, 14, 14)
 
         # Container card for rounded corners and dark slate background
         self.container = QWidget(self)
@@ -58,24 +60,32 @@ class CommandPaletteDialog(QDialog):
             QWidget#PaletteContainer {
                 background-color: #0f172a;
                 border: 1px solid #334155;
-                border-radius: 12px;
+                border-radius: 14px;
             }
         """)
 
-        # Drop shadow effect
+        # Drop shadow effect (soft, ambient elevation)
         shadow = QGraphicsDropShadowEffect(self.container)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(0, 0, 0, 180))
-        shadow.setOffset(0, 8)
+        shadow.setBlurRadius(32)
+        shadow.setColor(QColor(0, 0, 0, 210))
+        shadow.setOffset(0, 10)
         self.container.setGraphicsEffect(shadow)
 
         container_layout = QVBoxLayout(self.container)
-        container_layout.setContentsMargins(14, 14, 14, 14)
+        container_layout.setContentsMargins(16, 16, 16, 14)
         container_layout.setSpacing(10)
+
+        # Header Search Area
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(10)
+
+        search_icon = QLabel("🔍", self.container)
+        search_icon.setStyleSheet("font-size: 14px; color: #94a3b8;")
+        search_layout.addWidget(search_icon)
 
         # Search Bar
         self.search_input = QLineEdit(self.container)
-        self.search_input.setPlaceholderText("Search credentials... (Enter: Copy Password, Ctrl+C: Username, Ctrl+T: TOTP)")
+        self.search_input.setPlaceholderText("Search credentials by name, username, url...")
         self.search_input.setStyleSheet("""
             QLineEdit {
                 background-color: #1e293b;
@@ -89,10 +99,33 @@ class CommandPaletteDialog(QDialog):
             }
             QLineEdit:focus {
                 border: 1px solid #38bdf8;
+                background-color: #1a2436;
             }
         """)
         self.search_input.textChanged.connect(self._filter_results)
-        container_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_input)
+
+        hotkey_badge = QLabel("Ctrl+Shift+Space", self.container)
+        hotkey_badge.setStyleSheet("""
+            QLabel {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                color: #94a3b8;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border-radius: 6px;
+            }
+        """)
+        search_layout.addWidget(hotkey_badge)
+
+        container_layout.addLayout(search_layout)
+
+        # Divider line
+        divider = QFrame(self.container)
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet("border: none; border-top: 1px solid #1e293b;")
+        container_layout.addWidget(divider)
 
         # Results List
         self.results_list = QListWidget(self.container)
@@ -104,16 +137,20 @@ class CommandPaletteDialog(QDialog):
                 color: #e2e8f0;
             }
             QListWidget::item {
+                background-color: #182234;
+                border: 1px solid #273549;
                 padding: 8px 12px;
-                border-radius: 6px;
-                margin-bottom: 3px;
+                border-radius: 8px;
+                margin-bottom: 5px;
                 font-size: 13px;
             }
             QListWidget::item:hover {
                 background-color: #1e293b;
+                border-color: #38bdf8;
             }
             QListWidget::item:selected {
-                background-color: #0284c7;
+                background-color: #0f2b48;
+                border: 1px solid #38bdf8;
                 color: #ffffff;
                 font-weight: 600;
             }
@@ -121,12 +158,31 @@ class CommandPaletteDialog(QDialog):
         self.results_list.itemDoubleClicked.connect(self.handle_primary_action)
         container_layout.addWidget(self.results_list)
 
-        # Footer hints
+        # Footer hints with keyboard shortcuts
         footer_layout = QHBoxLayout()
-        footer_layout.setContentsMargins(4, 0, 4, 0)
-        footer_label = QLabel("↵ Copy Password   Ctrl+C Username   Ctrl+T TOTP   Ctrl+O Open Full   Esc Dismiss", self.container)
-        footer_label.setStyleSheet("color: #64748b; font-size: 11px;")
-        footer_layout.addWidget(footer_label)
+        footer_layout.setContentsMargins(6, 4, 6, 0)
+        footer_layout.setSpacing(12)
+
+        shortcut_hints = [
+            ("↵", "Copy Password", "#10b981"),
+            ("Ctrl+C", "Username", "#cbd5e1"),
+            ("Ctrl+T", "TOTP Code", "#38bdf8"),
+            ("Ctrl+O", "Full Details", "#a855f7"),
+            ("Esc", "Dismiss", "#64748b"),
+        ]
+
+        for key, desc, col in shortcut_hints:
+            hint_box = QHBoxLayout()
+            hint_box.setSpacing(4)
+            badge = QLabel(key, self.container)
+            badge.setStyleSheet(f"background: #1e293b; color: {col}; font-weight: bold; font-size: 10px; padding: 2px 5px; border-radius: 4px; border: 1px solid #334155;")
+            text = QLabel(desc, self.container)
+            text.setStyleSheet("color: #64748b; font-size: 11px;")
+            hint_box.addWidget(badge)
+            hint_box.addWidget(text)
+            footer_layout.addLayout(hint_box)
+
+        footer_layout.addStretch()
         container_layout.addLayout(footer_layout)
 
         outer_layout.addWidget(self.container)
@@ -140,7 +196,7 @@ class CommandPaletteDialog(QDialog):
 
     def reload_records(self) -> None:
         """
-        Fetches fresh records from the active provider if unlocked and updates results list.
+        Fetches fresh records from active provider and updates results list.
         """
         if self.provider and self.provider.is_unlocked():
             try:
@@ -157,92 +213,116 @@ class CommandPaletteDialog(QDialog):
 
         matched = []
         for secret in self._all_records:
+            name = secret.get_name() if hasattr(secret, "get_name") else getattr(secret, "name", "")
+            username = secret.get_username() if hasattr(secret, "get_username") else getattr(secret, "username", "")
+            cat = secret.get_category() if hasattr(secret, "get_category") else getattr(secret, "category", "login")
+            url = secret.get_url() if hasattr(secret, "get_url") else getattr(secret, "url", "")
+
             if not query:
                 matched.append(secret)
             else:
-                name_match = query in secret.name.lower()
-                user_match = query in (secret.username or "").lower()
-                cat_match = query in (secret.category or "").lower()
-                url_match = query in (secret.url or "").lower()
-                if name_match or user_match or cat_match or url_match:
+                if (query in name.lower() or query in username.lower() or query in cat.lower() or query in url.lower()):
                     matched.append(secret)
 
-        for secret in matched[:50]:  # Limit top 50 matches for responsiveness
-            user_part = f" ({secret.username})" if secret.username else ""
-            totp_badge = " [2FA]" if secret.has_totp() else ""
-            cat_badge = f" • {secret.category}" if secret.category else ""
-            label_text = f"{secret.name}{user_part}{totp_badge}{cat_badge}"
+        # Dynamic height sizing based on result count (max 8 visible items)
+        visible_rows = min(max(len(matched), 1), 8)
+        self.results_list.setFixedHeight(visible_rows * 48 + 10)
 
-            item = QListWidgetItem(label_text)
-            item.setData(Qt.ItemDataRole.UserRole, secret)
+        for secret in matched[:20]:
+            name = secret.get_name() if hasattr(secret, "get_name") else getattr(secret, "name", "")
+            username = secret.get_username() if hasattr(secret, "get_username") else getattr(secret, "username", "")
+            cat = secret.get_category() if hasattr(secret, "get_category") else getattr(secret, "category", "login")
+
+            display_title = f"{name}"
+            if username:
+                display_title += f" ({username})"
+            display_title += f" • {cat}"
+
+            totp_sec = secret.get_totp_secret() if hasattr(secret, "get_totp_secret") else getattr(secret, "totp_secret", None)
+            if totp_sec:
+                display_title += " [2FA]"
+
+            item = QListWidgetItem(display_title)
+            item.setData(Qt.ItemDataRole.UserRole, name)
             self.results_list.addItem(item)
 
-        if self.results_list.count() > 0:
+        if not matched:
+            empty_item = QListWidgetItem("No matching credentials found")
+            empty_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            empty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.results_list.addItem(empty_item)
+        else:
             self.results_list.setCurrentRow(0)
 
-        # Dynamic height adjustment
-        row_count = min(max(self.results_list.count(), 1), 8)
-        self.results_list.setFixedHeight(row_count * 38 + 10)
         self.adjustSize()
-
-    def _get_selected_secret(self) -> Optional[Secret]:
-        current_item = self.results_list.currentItem()
-        if current_item:
-            return current_item.data(Qt.ItemDataRole.UserRole)
-        if self.results_list.count() > 0:
-            return self.results_list.item(0).data(Qt.ItemDataRole.UserRole)
-        return None
 
     def show_centered(self) -> None:
         """
-        Positions the palette centered horizontally in the top third of the active screen,
-        clears search input, reloads records, and activates window.
+        Positions palette centered horizontally in top third of active monitor.
         """
         self.search_input.clear()
         self.reload_records()
 
-        # Center on active screen in top third
-        screen_rect = get_active_screen_geometry()
-        x = screen_rect.x() + (screen_rect.width() - self.width()) // 2
-        y = screen_rect.y() + (screen_rect.height() // 5)  # top third
-        self.move(x, y)
+        screen_geo = get_active_screen_geometry()
+        x = screen_geo.x() + (screen_geo.width() - self.width()) // 2
+        y = screen_geo.y() + (screen_geo.height() // 4)
 
+        self.move(x, y)
         self.show()
         self.raise_()
         self.activateWindow()
         self.search_input.setFocus()
 
     def handle_primary_action(self) -> None:
-        """
-        Copies password to clipboard with 30s auto-wipe and dismisses dialog.
-        """
-        secret = self._get_selected_secret()
-        if secret and secret.password:
-            SecureClipboardManager.copy(secret.password, clear_timeout_seconds=30)
+        """Copies password of selected secret to clipboard with 30s auto-erase and dismisses."""
+        current_item = self.results_list.currentItem()
+        if not current_item:
+            return
+
+        secret_name = current_item.data(Qt.ItemDataRole.UserRole)
+        if not secret_name:
+            return
+
+        secret = self._find_secret(secret_name)
+        if secret:
+            pwd = secret.get_password() if hasattr(secret, "get_password") else getattr(secret, "password", "")
+            SecureClipboardManager.copy(pwd, clear_timeout_seconds=30)
             self.hide()
 
     def handle_copy_username(self) -> None:
-        """
-        Copies username to clipboard with 30s auto-wipe.
-        """
-        secret = self._get_selected_secret()
-        if secret and secret.username:
-            SecureClipboardManager.copy(secret.username, clear_timeout_seconds=30)
+        current_item = self.results_list.currentItem()
+        if not current_item:
+            return
+        secret_name = current_item.data(Qt.ItemDataRole.UserRole)
+        secret = self._find_secret(secret_name)
+        if secret:
+            user = secret.get_username() if hasattr(secret, "get_username") else getattr(secret, "username", "")
+            if user:
+                SecureClipboardManager.copy(user, clear_timeout_seconds=30)
+                self.hide()
 
     def handle_copy_totp(self) -> None:
-        """
-        Generates and copies TOTP code with 30s auto-wipe.
-        """
-        secret = self._get_selected_secret()
-        if secret and secret.totp_secret:
-            res = TotpService.generate_totp(secret.totp_secret)
-            if isinstance(res, dict):
-                code = res.get("code")
-            else:
-                code = res
-            if code:
-                SecureClipboardManager.copy(code, clear_timeout_seconds=30)
+        current_item = self.results_list.currentItem()
+        if not current_item:
+            return
+        secret_name = current_item.data(Qt.ItemDataRole.UserRole)
+        secret = self._find_secret(secret_name)
+        if secret:
+            totp_sec = secret.get_totp_secret() if hasattr(secret, "get_totp_secret") else getattr(secret, "totp_secret", None)
+            if totp_sec:
+                try:
+                    code = TotpService.generate_totp(totp_sec)
+                    SecureClipboardManager.copy(code, clear_timeout_seconds=30)
+                    self.hide()
+                except Exception:
+                    pass
 
+    def _find_secret(self, name: str) -> Optional[Secret]:
+        for s in self._all_records:
+            sec_name = s.get_name() if hasattr(s, "get_name") else getattr(s, "name", "")
+            if sec_name == name:
+                return s
+        return None
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()
@@ -251,50 +331,37 @@ class CommandPaletteDialog(QDialog):
         if key == Qt.Key.Key_Escape:
             self.hide()
             event.accept()
-            return
-
-        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.handle_primary_action()
             event.accept()
-            return
-
-        if modifiers == Qt.KeyboardModifier.ControlModifier:
-            if key == Qt.Key.Key_C:
-                self.handle_copy_username()
-                event.accept()
-                return
-            elif key == Qt.Key.Key_T:
-                self.handle_copy_totp()
-                event.accept()
-                return
-            elif key == Qt.Key.Key_O:
-                secret = self._get_selected_secret()
-                if secret:
-                    self.open_full_window_requested.emit(secret.name)
+        elif modifiers & Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_C:
+            self.handle_copy_username()
+            event.accept()
+        elif modifiers & Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_T:
+            self.handle_copy_totp()
+            event.accept()
+        elif modifiers & Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_O:
+            current_item = self.results_list.currentItem()
+            if current_item:
+                sec_name = current_item.data(Qt.ItemDataRole.UserRole)
+                if sec_name:
                     self.hide()
-                event.accept()
-                return
-
-        if key == Qt.Key.Key_Down:
+                    self.open_full_window_requested.emit(sec_name)
+            event.accept()
+        elif key == Qt.Key.Key_Down:
             curr = self.results_list.currentRow()
             if curr < self.results_list.count() - 1:
                 self.results_list.setCurrentRow(curr + 1)
             event.accept()
-            return
-
-        if key == Qt.Key.Key_Up:
+        elif key == Qt.Key.Key_Up:
             curr = self.results_list.currentRow()
             if curr > 0:
                 self.results_list.setCurrentRow(curr - 1)
             event.accept()
-            return
-
-        super().keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
 
     def changeEvent(self, event: QEvent) -> None:
-        """
-        Auto-dismiss on loss of window activation focus.
-        """
         if event.type() == QEvent.Type.ActivationChange:
             if not self.isActiveWindow():
                 self.hide()
