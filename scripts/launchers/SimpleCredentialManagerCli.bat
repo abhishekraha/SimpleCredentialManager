@@ -1,10 +1,10 @@
 @echo off
 setlocal ENABLEDELAYEDEXPANSION
 
-cd /d "%~dp0"
+REM Move to project root (one directory up from scripts/launchers)
+cd /d "%~dp0..\.."
 
 set "PYTHON_EXE="
-set "PYTHON_GUI_EXE="
 
 where python >nul 2>&1
 if %errorlevel%==0 (
@@ -14,11 +14,6 @@ if %errorlevel%==0 (
     if %errorlevel%==0 (
         set "PYTHON_EXE=py"
     )
-)
-
-where pythonw >nul 2>&1
-if %errorlevel%==0 (
-    set "PYTHON_GUI_EXE=pythonw"
 )
 
 if not defined PYTHON_EXE (
@@ -50,11 +45,14 @@ if exist requirements.txt (
     echo No requirements.txt found, skipping dependency installation.
 )
 
-if defined PYTHON_GUI_EXE (
-    start "Simple Credential Manager" "%PYTHON_GUI_EXE%" "%~dp0SimpleCredentialManagerUi.py"
-) else (
-    start "Simple Credential Manager" "%PYTHON_EXE%" "%~dp0SimpleCredentialManagerUi.py"
-)
+timeout /t 5 /nobreak >nul
+
+start "Simple Credential Manager" cmd /k ""%PYTHON_EXE%" "SimpleCredentialManagerCli.py""
+
+echo.
+echo Launched Simple Credential Manager in a new window.
+echo You can close this window now if you want.
+pause
 
 endlocal
 exit /b 0

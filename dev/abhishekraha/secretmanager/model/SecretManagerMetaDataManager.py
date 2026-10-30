@@ -16,12 +16,22 @@ class SecretManagerMetaDataManager:
             version=CURRENT_KEY_DERIVATION_VERSION,
             failed_auth_attempts=0,
             lockout_until=None,
+            preferred_ui=None,
     ):
         self._salt = salt or os.urandom(16)
         self._password_verifier = password_verifier
         self._version = version
         self._failed_auth_attempts = failed_auth_attempts
         self._lockout_until = lockout_until
+        self._preferred_ui = preferred_ui or "modern"
+
+    def get_preferred_ui(self):
+        return self._preferred_ui
+
+    def set_preferred_ui(self, preferred_ui):
+        if preferred_ui not in ("modern", "classic"):
+            raise ValueError(f"Invalid UI preference: {preferred_ui}. Expected 'modern' or 'classic'.")
+        self._preferred_ui = preferred_ui
 
     def get_salt(self):
         return self._salt
@@ -97,6 +107,7 @@ class SecretManagerMetaDataManager:
             "password_verifier": self._password_verifier,
             "failed_auth_attempts": self._failed_auth_attempts,
             "lockout_until": self._lockout_until.isoformat() if self._lockout_until else None,
+            "preferred_ui": self._preferred_ui,
         }
 
     @classmethod
@@ -118,6 +129,7 @@ class SecretManagerMetaDataManager:
             version=version,
             failed_auth_attempts=metadata_payload.get("failed_auth_attempts", 0),
             lockout_until=_parse_datetime(metadata_payload.get("lockout_until")),
+            preferred_ui=metadata_payload.get("preferred_ui", "modern"),
         )
 
 

@@ -1,191 +1,154 @@
-Simple Credential Manager
-=========================
+# Simple Credential Manager (SCM)
 
-A minimal, local, file-backed credential manager written in Python.
-It stores encrypted secrets (name, username, password, URL, comments) on the local machine and protects them with a
-master password.
+[![GitHub Pages](https://img.shields.io/badge/Live_Site-GitHub_Pages-10b981?style=for-the-badge&logo=github)](https://abhishekraha.github.io/SimpleCredentialManager/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-06b6d4?style=for-the-badge)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-38bdf8?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Zero Cloud](https://img.shields.io/badge/Storage-100%25_Local_Zero_Cloud-34d399?style=for-the-badge)](https://abhishekraha.github.io/SimpleCredentialManager/)
 
-Change Log
----------------
+> **Live Interactive Site & Documentation:** [https://abhishekraha.github.io/SimpleCredentialManager/](https://abhishekraha.github.io/SimpleCredentialManager/)  
+> **Author & Developer Contact:** [https://abhishekraha.github.io/AbhishekRaha](https://abhishekraha.github.io/AbhishekRaha)
 
-See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+---
 
-`v2.0.8`
+Simple Credential Manager is a high-assurance, sovereign, local-first credential vault and RFC 6238 2FA authenticator designed for developers, privacy advocates, and security-minded power users. It eliminates cloud storage risks by keeping your encrypted credentials on your local machine using state-of-the-art cryptography.
 
-- [ Feature ] Added in-place upgrade installation from the desktop update prompt instead of redirecting to GitHub.
+```
+       ┌────────────────────────────────────────────────────────┐
+       │   Simple Credential Manager — Dual Interface (v3.0)   │
+       └────────────────────────────────────────────────────────┘
+                 │                                    │
+                 ▼                                    ▼
+       [ Modern PySide6 Desktop UI ]       [ Modern Rich/Typer CLI ]
+       (Dark/Light, TOTP Arc, 3-Pane)      (Interactive & Headless)
+                 │                                    │
+                 └─────────────────┬──────────────────┘
+                                   ▼
+                   [ SecretManagerService Core ]
+                                   │
+              ┌────────────────────┴────────────────────┐
+              ▼                                         ▼
+   [ Envelope KEK / DEK ]                    [ SecureBuffer RAM ]
+    Argon2id (64MB / 3-iter)                  Explicit C-style memset
+              │                                         │
+              ▼                                         ▼
+   [ SQLite WAL Row-Level AEAD ]             [ Zero-Trace Clipboard ]
+    AES-256-GCM + Blind Index                 30s auto-erase + OS flags
+```
 
-Important Disclaimer
---------------------
+---
 
-This project is a hobby project and may contain bugs, design flaws, or incomplete features. Do not use it unless you
-have reviewed the code, understood how it stores and protects data, and accepted the risks of a local file-backed
-password store.
+## The 4 Security Pillars
 
-Security Warning
-----------------
+1. **Argon2id & Two-Tier Envelope Encryption (KEK / DEK)**:
+   - Derives a 256-bit Key Encryption Key (KEK) using memory-hard Argon2id ($m=64\text{MB}, t=3$).
+   - The KEK unwraps an internal Data Encryption Key (DEK). Changing master passwords rotates only the DEK envelope in under a millisecond with zero re-encryption of stored secrets.
 
-All secrets, metadata, exports, and audit artifacts are stored on the local machine. If an attacker can copy the vault
-files from the machine, they can attempt offline brute-force attacks against the master password. The application adds
-encryption, lockout/backoff, and audit logging, but it does not make a compromised machine safe.
+2. **SecureBuffer Explicit Memory Zeroing**:
+   - Python strings are immutable and linger in garbage-collected memory. SCM utilizes mutable `bytearray` memory buffers cleared via explicit `memset` upon session locking.
+   - Sessions automatically lock after 60 seconds of inactivity.
 
-Use this software only if you understand:
+3. **Zero-Trace OS Clipboard Protection**:
+   - Applies Windows `ExcludeClipboardContentFromMonitorProcessing` / `ClipboardViewerIgnore` and macOS `org.nspasteboard.ConcealedType` to shield copied passwords from cloud syncs, clipboard histories, and spyware.
+   - Cleans up secrets with a guaranteed 30-second background eraser.
 
-- the master password is the main security boundary
-- local plaintext exports are especially sensitive
-- anyone with sufficient access to the machine or copied vault files can still attempt brute-force recovery offline
-- losing the master password means the encrypted secrets cannot be recovered
+4. **Row-Level SQLite WAL & HMAC Blind Indexing**:
+   - Stored in `~/.simpleCredentialManager/vault.scmdb` with Write-Ahead Logging (WAL) for atomic transactions.
+   - Each secret is encrypted with distinct 96-bit AES-GCM nonces.
+   - HMAC-SHA256 blind indexing allows instant $O(1)$ querying without exposing credential names in plaintext.
 
-Do not treat this project as production-grade security software unless you have independently reviewed and validated the
-implementation for your own use case.
+---
 
-![login](images/SCM-login.png)
-![home](images/SCM-home.png)
-![bulk-insert](images/SCM-bulk-insert.png)
+## User Interfaces
 
-Features & Functionality
-------------------------
+### 1. Modern Desktop UI (Default)
+Built with PySide6:
+- **Master Password Prompt On Open**: Prompts for master password entry before revealing any vault data.
+- **3-Pane Layout**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, and comprehensive details panel.
+- **Integrated TOTP Arc**: Live countdown animation and one-click TOTP token copying.
+- **Password Generator & Health Audit**: Live entropy scores, duplicate detection, and optional HaveIBeenPwned k-anonymity leak audits.
+- **Theme Switcher**: Button in the sidebar to toggle between Modern UI and Classic Tkinter UI with immediate or restart prompts.
 
-1) First initialization
-    - On the first run the desktop app or CLI performs an interactive setup and prompts you to create and confirm a
-      master password. This prepares the application for secure use.
+### 2. Modern Rich CLI
+Interactive and headless commands powered by Typer and Rich:
+```bash
+# List all credentials in a styled table
+python SimpleCredentialManagerCli.py list
 
-2) Master password (critical)
-    - The master password is the single, critical key for the vault. All stored secrets are encrypted and require this
-      password to access. If you lose the master password the application cannot recover the secrets.
+# Retrieve and copy a secret (with 30-second auto-erase)
+python SimpleCredentialManagerCli.py get github-token --clip
 
-3) Authentication backoff & audit logging
-    - The application tracks failed master-password attempts.
-    - Repeated failures trigger a temporary lockout with increasing backoff instead of deleting the vault.
-    - Authentication, vault, and credential-management actions are written to a local audit log.
-    - The audit log records action metadata, but not plaintext secret values or passwords.
+# Generate real-time 2FA / TOTP code
+python SimpleCredentialManagerCli.py totp aws-root --clip
 
-4) Local storage
-    - All data (metadata and encrypted secrets) is stored on the user's local machine. No cloud storage is used by
-      default.
+# Audit vault password health
+python SimpleCredentialManagerCli.py health --breaches
 
-5) Vault format
-    - New vaults use the current `v4` key-derivation and metadata format.
-    - Legacy `v2` and `v3` vault logic has been removed from the codebase.
-    - This release supports only `v4` vault metadata and key derivation.
-    - If you still encounter a `v2` or `v3` vault on a machine that was expected to be migrated already, report it as
-      a bug at
-      `https://github.com/abhishekraha/SimpleCredentialManager`.
+# Interactive full terminal menu
+python SimpleCredentialManagerCli.py interactive
+```
 
-6) Desktop UI
-    - `v2.0.0` introduced a native Tkinter desktop interface that works with the same encrypted vault used by the CLI.
-    - The UI supports unlock/setup, add/view/edit/delete, search, clipboard copy, import/export, encrypted backup export, and lock.
-    - In the details view, clicking the username copies it to the clipboard and clicking the password copies the password.
-    - Clicking the stored URL opens it in the default browser.
-    - `v2.0.1` adds bulk insert with a header-guided comma-separated input dialog.
-    - `v2.0.2` adds click-to-copy for usernames and click-to-open behavior for stored URLs.
-    - `v2.0.3` automatically locks the desktop UI and authenticated CLI sessions after 1 minute of inactivity.
-    - `v2.0.4` adds GitHub release update awareness, including startup checks, a clickable update prompt, and footer version coloring for update and stale-release states.
-    - `v2.0.7` adds a Generate button for secret passwords and encrypted backup export/import support protected by a separate backup password.
-    - `v2.0.8` lets the desktop update prompt download and install the latest tagged release in place, with a GitHub fallback if the automatic upgrade fails.
-    - Both the UI and CLI use the same backend service, so storage and security behavior live in one place.
+---
 
-7) CLI menu options
-    - Startup release warning: `v2.0.4` adds a GitHub release check on startup and shows a warning for 10 seconds before continuing when an update is available or the latest release is stale.
-    - Add Secret: interactively add a new secret.
-    - Bulk Insert Secrets: paste comma-separated rows into the CLI using the displayed header format.
-    - View Secret: view details for a stored secret (requires master password).
-    - Update Secret: modify an existing secret.
-    - Delete Secret: remove a secret from the store.
-    - List All Secrets: display a list of stored secret names.
-    - Generated passwords: the CLI can generate a random password for a new or updated secret instead of requiring manual entry.
-    - Export to CSV: export stored entries to a CSV file (to a default app location by default); prompts before
-      overwriting an existing file and allows you to choose a different name/location.
-    - Export encrypted backup: export stored entries into an encrypted backup file protected by its own backup password.
-    - Import from CSV or encrypted backup: import entries from a CSV file or a password-protected backup; prompts before overwriting existing entries or files and lets you
-      select the import file.
-    - Exit: quit the CLI.
+## Persistent Lockout & Fresh Wipe Option
 
-Installation
-------------
-Prerequisites:
+- Failed master password attempts are tracked persistently across restarts.
+- Backoff escalates exponentially ($30\text{s} \to 60\text{s} \to 120\text{s} \to \dots \to 15\text{min}$) to thwart brute-force attempts.
+- **After 3 failed attempts**, users are presented with a **Reset Vault & Wipe** option. Requiring typing `"WIPE"` for confirmation, this securely deletes vault databases, metadata, and backups to allow starting fresh.
 
-- Python 3.8+ (Python 3.11+ tested by project artefacts)
-- pip
-- Tkinter support for the desktop UI
-  - On Linux this may require installing a distro package such as `python3-tk`.
+---
 
-Install dependencies:
+## Quickstart
 
-Windows PowerShell:
+### Prerequisites
+- Python 3.10+
+- `pip`
 
-    python -m pip install --upgrade pip; python -m pip install -r requirements.txt
+### Installation
+```bash
+git clone https://github.com/abhishekraha/SimpleCredentialManager.git
+cd SimpleCredentialManager
+pip install -r requirements.txt
+```
 
-Or use the provided Windows launcher `SimpleCredentialManagerCli.bat` which attempts to find Python and install
-requirements automatically.
+### Launch
+```bash
+# Launch Modern Desktop UI (PySide6)
+python SimpleCredentialManagerUi.py
 
-Usage
------
+# Launch Interactive CLI
+python SimpleCredentialManagerCli.py
+```
 
-1. Start the desktop UI directly:
+*Or use the dedicated platform launcher scripts located in `scripts/launchers/`:*
+- **Windows**: `scripts/launchers/SimpleCredentialManagerUi.bat` or `scripts/launchers/SimpleCredentialManagerCli.bat`
+- **Linux / macOS**: `scripts/launchers/SimpleCredentialManagerUi.sh` or `scripts/launchers/SimpleCredentialManagerCli.sh`
 
-   python SimpleCredentialManagerUi.py
+*To explicitly run the legacy interface, launch with `--classic` or `--tkinter`:*
+```bash
+python SimpleCredentialManagerUi.py --classic
+python SimpleCredentialManagerCli.py --legacy
+```
 
-2. Or use the OS-specific UI launcher scripts:
+---
 
-- Windows: run `SimpleCredentialManagerUi.bat`
-- POSIX: run `./SimpleCredentialManagerUi.sh`
+## Standalone Binary Packaging
 
-3. The CLI remains available if you prefer a terminal workflow:
+To compile standalone binaries without requiring Python on the target host:
+- **Windows**: `scripts/local-builder/build-windows.bat` or `scripts/local-builder/build-windows.ps1`
+- **Linux / macOS**: `scripts/local-builder/build-unix.sh`
 
-   python SimpleCredentialManagerCli.py
+---
 
-4. CLI launchers are also still available:
+## Documentation
 
-- Windows: run `SimpleCredentialManagerCli.bat` (this will open the CLI in a new Command Prompt window)
-- POSIX: run `./SimpleCredentialManagerCli.sh`
+- [**Live GitHub Pages Site**](https://abhishekraha.github.io/SimpleCredentialManager/)
+- [**Architecture & Cryptography Deep Dive**](docs/ARCHITECTURE_DEEP_DIVE.md)
+- [**Security & Threat Model**](docs/ARCHITECTURE_DEEP_DIVE.md#threat-model--mitigations)
+- [**Change Log**](CHANGELOG.md)
 
-The desktop UI and CLI both talk to the same backend service and the same local vault files.
+---
 
-On first run:
+## License & Attribution
 
-- You'll be prompted to create a master password and re-enter it. The app will create the metadata and secrets files on
-  your local machine.
-- Keep the master password safe. If you lose it, the application cannot recover the secrets (they are encrypted with a
-  key derived from the password).
-
-If you already have an older vault:
-
-- This release no longer supports `v2` or `v3` vault logic.
-- If a machine was expected to be migrated already but still shows an older vault format, report it as a bug at
-  `https://github.com/abhishekraha/SimpleCredentialManager`.
-
-Container (optional Docker environment)
---------------------------------------
-
-- The `container/` directory contains a Dockerfile that builds an Ubuntu-based image with the dependencies needed to run
-  the CLI in an isolated environment. This is useful to test the project in a disposable environment before running it
-  on your local machine.
-- Important: by default the container does not map any host directories or volumes. Any data (secrets or metadata)
-  created inside the container will be lost when the container stops or you log out, unless you explicitly mount a host
-  directory or Docker volume for persistence.
-
-To build and run the container:
-
-    cd container
-    docker build -t simple-credential-manager .
-    docker run -it --rm simple-credential-manager
-
-Release Packaging
------------------
-
-After a successful merge to `main` and a passing GitHub Actions test run, the repository automatically creates a GitHub
-release named `v<version number>`.
-
-That release uses GitHub's built-in source archive generation, so the repository ZIP is made available automatically
-from the release tag without maintaining a separate packaging script.
-
-The release workflow runs only from successful trusted `push` runs on `main` after the test workflow completes, so PR
-validation stays in the lower-privilege test workflow and release creation happens separately in the post-merge path.
-
-License
--------
-This project includes a LICENSE file at the repository root. Check it for licensing details.
-
-Contact
--------
-For questions or contributions, open an issue or a pull request against the repository.
+- Distributed under the [MIT License](LICENSE).
+- Created and maintained by [**Abhishek Raha**](https://abhishekraha.github.io/AbhishekRaha).

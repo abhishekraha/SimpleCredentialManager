@@ -35,7 +35,14 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def copy_to_clipboard(value):
+def copy_to_clipboard(value, clear_timeout_seconds=0, secure=False):
+    if secure:
+        try:
+            from dev.abhishekraha.secretmanager.utils.SecureClipboardManager import SecureClipboardManager
+            return SecureClipboardManager.copy(value, clear_timeout_seconds=clear_timeout_seconds)
+        except Exception:
+            pass
+
     clipboard_text = "" if value is None else str(value)
     clipboard_commands = _get_clipboard_commands()
 
@@ -48,11 +55,24 @@ def copy_to_clipboard(value):
                 check=True,
                 capture_output=True,
             )
+            if clear_timeout_seconds and clear_timeout_seconds > 0:
+                try:
+                    from dev.abhishekraha.secretmanager.utils.SecureClipboardManager import SecureClipboardManager
+                    SecureClipboardManager.copy(value, clear_timeout_seconds=clear_timeout_seconds, enable_privacy=False)
+                except Exception:
+                    pass
             return True
         except (FileNotFoundError, OSError, subprocess.SubprocessError):
             continue
 
-    return _copy_with_tkinter(clipboard_text)
+    copied = _copy_with_tkinter(clipboard_text)
+    if copied and clear_timeout_seconds and clear_timeout_seconds > 0:
+        try:
+            from dev.abhishekraha.secretmanager.utils.SecureClipboardManager import SecureClipboardManager
+            SecureClipboardManager.copy(value, clear_timeout_seconds=clear_timeout_seconds, enable_privacy=False)
+        except Exception:
+            pass
+    return copied
 
 
 def _get_clipboard_commands():

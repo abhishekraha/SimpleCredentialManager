@@ -18,11 +18,14 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
     ENCRYPTED_BACKUP_FILE_EXTENSION,
     SECRET_FILE,
     SECRET_MANAGER_META_DATA,
+    VAULT_DB_FILE,
 )
 from dev.abhishekraha.secretmanager.model.Secret import Secret
 from dev.abhishekraha.secretmanager.model.SecretManagerMetaDataManager import (
     SecretManagerMetaDataManager,
 )
+from dev.abhishekraha.secretmanager.storage.SqliteVaultStorage import SqliteVaultStorage
+from dev.abhishekraha.secretmanager.storage.StorageMigrator import StorageMigrator
 from dev.abhishekraha.secretmanager.utils.AuditLogger import audit_action
 
 
@@ -259,7 +262,18 @@ class SecretManagerService:
             return "csv"
         return "encrypted_backup" if payload.get("format") == ENCRYPTED_BACKUP_FORMAT else "csv"
 
-    def add_secret(self, name, username, password, url="", comments=""):
+    def add_secret(
+        self,
+        name,
+        username,
+        password,
+        url="",
+        comments="",
+        category="login",
+        is_favorite=False,
+        totp_secret=None,
+        tags=None,
+    ):
         self._require_unlocked()
         name = (name or "").strip()
         if not name:
@@ -268,7 +282,17 @@ class SecretManagerService:
         if name in self._secrets:
             self._audit("secret_add_failed", status="failed", reason="duplicate_secret_name", secret_name=name)
             raise ValueError("A secret with this name already exists.")
-        self._secrets[name] = Secret(name, username or "", password or "", url or "", comments or "")
+        self._secrets[name] = Secret(
+            name=name,
+            username=username or "",
+            password=password or "",
+            url=url or "",
+            comments=comments or "",
+            category=category or "login",
+            is_favorite=bool(is_favorite),
+            totp_secret=totp_secret,
+            tags=tags or [],
+        )
         self._persist_secrets()
         self._audit("secret_added", secret_name=name)
 
@@ -368,7 +392,19 @@ class SecretManagerService:
         self._audit("bulk_insert_completed", **summary)
         return summary
 
-    def update_secret(self, original_name, new_name, username, password, url="", comments=""):
+    def update_secret(
+        self,
+        original_name,
+        new_name=None,
+        username=None,
+        password=None,
+        url="",
+        comments="",
+        category=None,
+        is_favorite=None,
+        totp_secret=None,
+        tags=None,
+    ):
         self._require_unlocked()
         original_name = (original_name or "").strip()
         if original_name not in self._secrets:
@@ -386,10 +422,20 @@ class SecretManagerService:
 
         secret = self._secrets.pop(original_name)
         secret.set_name(target_name)
-        secret.set_username(username or "")
-        secret.set_password(password or "")
+        if username is not None:
+            secret.set_username(username or "")
+        if password is not None:
+            secret.set_password(password or "")
         secret.set_url(url or "")
         secret.set_comments(comments or "")
+        if category is not None:
+            secret.set_category(category or "login")
+        if is_favorite is not None:
+            secret.set_favorite(bool(is_favorite))
+        if totp_secret is not None:
+            secret.set_totp_secret(totp_secret)
+        if tags is not None:
+            secret.set_tags(tags)
         secret.set_update_date(datetime.now())
         self._secrets[target_name] = secret
         self._persist_secrets()
@@ -676,20 +722,142 @@ class SecretManagerService:
             raise ValueError("A rename resolver is required for rename conflict strategy.")
 
     def _load_secrets(self):
+        if VAULT_DB_FILE.exists():
+            storage = SqliteVaultStorage(VAULT_DB_FILE)
+            self._secrets = storage.get_all_secrets(CodecUtils.get_derived_key())
+            return
+
         if not SECRET_FILE.exists():
             SerDeUtils.dump_secrets({}, SECRET_FILE)
         self._secrets = SerDeUtils.load_secrets(SECRET_FILE)
 
     def _persist_metadata(self):
-        SerDeUtils.dump(self._require_metadata(), SECRET_MANAGER_META_DATA)
+        metadata = self._require_metadata()
+        SerDeUtils.dump(metadata, SECRET_MANAGER_META_DATA)
+        if VAULT_DB_FILE.exists():
+            try:
+                storage = SqliteVaultStorage(VAULT_DB_FILE)
+                if storage.get_vault_meta():
+                    storage.update_vault_meta(
+                        lockout_data={
+                            "failed_auth_attempts": metadata.get_failed_auth_attempts(),
+                            "lockout_until": (
+                                metadata._lockout_until.isoformat()
+                                if metadata._lockout_until
+                                else None
+                            ),
+                        },
+                        preferred_ui=metadata.get_preferred_ui(),
+                    )
+            except Exception:
+                pass
+
+    def get_ui_preference(self) -> str:
+        """
+        Retrieves the preferred UI mode ('modern' or 'classic').
+        Checks SQLite storage first, then metadata file, defaulting to 'modern'.
+        """
+        if VAULT_DB_FILE.exists():
+            try:
+                storage = SqliteVaultStorage(VAULT_DB_FILE)
+                return storage.get_ui_preference()
+            except Exception:
+                pass
+
+        if self._metadata_manager is not None:
+            return self._metadata_manager.get_preferred_ui()
+
+        if SECRET_MANAGER_META_DATA.exists():
+            try:
+                meta = SerDeUtils.load(SECRET_MANAGER_META_DATA)
+                return meta.get_preferred_ui()
+            except Exception:
+                pass
+
+        return "modern"
+
+    def set_ui_preference(self, ui_type: str) -> None:
+        """
+        Sets the preferred UI mode ('modern' or 'classic') in both SQLite storage
+        and metadata file.
+        """
+        if ui_type not in ("modern", "classic"):
+            raise ValueError(f"Invalid UI preference: {ui_type}. Expected 'modern' or 'classic'.")
+
+        # 1. Update in-memory metadata manager if present
+        if self._metadata_manager is not None:
+            self._metadata_manager.set_preferred_ui(ui_type)
+            SerDeUtils.dump(self._metadata_manager, SECRET_MANAGER_META_DATA)
+        elif SECRET_MANAGER_META_DATA.exists():
+            try:
+                meta = SerDeUtils.load(SECRET_MANAGER_META_DATA)
+                meta.set_preferred_ui(ui_type)
+                SerDeUtils.dump(meta, SECRET_MANAGER_META_DATA)
+            except Exception:
+                pass
+
+        # 2. Update SQLite database
+        self._ensure_app_dirs()
+        storage = SqliteVaultStorage(VAULT_DB_FILE)
+        storage.set_ui_preference(ui_type)
+
+        self._audit("ui_preference_changed", preferred_ui=ui_type)
 
     def _persist_secrets(self):
         self._require_unlocked()
+        if VAULT_DB_FILE.exists():
+            storage = SqliteVaultStorage(VAULT_DB_FILE)
+            dek = CodecUtils.get_derived_key()
+            blind_key = CodecUtils.derive_blind_index_key(dek)
+            # Sync any new or modified secrets
+            # To handle deletes correctly, clear secrets table and re-save
+            with storage._get_connection() as conn:
+                conn.execute("DELETE FROM secrets;")
+            for s in self._secrets.values():
+                storage.save_secret(s, dek, blind_key)
+            return
+
         SerDeUtils.dump_secrets(self._secrets, SECRET_FILE)
 
     def _ensure_app_dirs(self):
         APP_HOME_DIR.mkdir(parents=True, exist_ok=True)
         APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    def reset_vault_and_wipe_all(self):
+        """
+        Wipes out all stored credentials, metadata, SQLite database, and temporary backups,
+        clearing the session so the user can start completely fresh.
+        """
+        targets = [
+            SECRET_FILE,
+            VAULT_DB_FILE,
+            SECRET_MANAGER_META_DATA,
+            Path(f"{VAULT_DB_FILE}-wal"),
+            Path(f"{VAULT_DB_FILE}-shm"),
+            SECRET_FILE.with_suffix(".secret.backup"),
+            SECRET_MANAGER_META_DATA.with_suffix(".metadata.backup"),
+        ]
+        # Also clean up any other matching .scmdb-wal, .scmdb-shm or .backup files in app dirs
+        if APP_HOME_DIR.exists():
+            for p in APP_HOME_DIR.glob("*.scmdb*"):
+                targets.append(p)
+            for p in APP_HOME_DIR.glob("*.backup"):
+                targets.append(p)
+        if APP_CONFIG_DIR.exists():
+            for p in APP_CONFIG_DIR.glob("*.backup"):
+                targets.append(p)
+
+        for path in set(targets):
+            try:
+                if path.is_file():
+                    path.unlink()
+            except OSError:
+                pass
+
+        self._clear_session()
+        self._metadata_manager = None
+        self._audit("vault_wiped", reason="user_requested_after_failed_auth")
+        self.initialize()
 
     def _clear_session(self):
         self._secrets = {}

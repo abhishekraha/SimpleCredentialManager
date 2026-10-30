@@ -1,7 +1,9 @@
 #!/bin/bash
 
-cd "$(dirname "$0")"
+# Move to project root (one directory up from scripts/launchers)
+cd "$(dirname "$0")/../.."
 
+# Find a working python executable
 if command -v python3 &>/dev/null; then
     PYTHON_EXE="python3"
 elif command -v python &>/dev/null; then
@@ -14,6 +16,7 @@ fi
 echo "Using Python: $PYTHON_EXE"
 echo
 
+# Create virtual environment if it doesn't exist
 if [[ ! -d ".venv" ]]; then
     echo "Creating virtual environment in .venv ..."
     "$PYTHON_EXE" -m venv .venv
@@ -23,9 +26,11 @@ if [[ ! -d ".venv" ]]; then
     fi
 fi
 
+# Activate virtual environment
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
+# Install dependencies if requirements.txt exists (inside venv)
 if [[ -f "requirements.txt" ]]; then
     echo "Installing dependencies into virtual environment..."
     pip install --upgrade pip
@@ -34,4 +39,7 @@ else
     echo "No requirements.txt found, skipping dependency installation."
 fi
 
-python SimpleCredentialManagerUi.py
+sleep 5
+clear
+
+python SimpleCredentialManagerCli.py

@@ -12,14 +12,35 @@ def create_secret(secret_name):
 
 
 class Secret:
-    def __init__(self, name, username, password, url, comments, create_date=None, update_date=None):
+    def __init__(
+        self,
+        name,
+        username,
+        password,
+        url="",
+        comments="",
+        create_date=None,
+        update_date=None,
+        tags=None,
+        category="login",
+        favorite=False,
+        totp_secret="",
+        is_favorite=None,
+    ):
         self._name = name
         self._username = username
         self._password = password
-        self._url = url
-        self._comments = comments
+        self._url = url or ""
+        self._comments = comments or ""
         self._create_date = create_date or datetime.now()
         self._update_date = update_date
+        self._tags = list(tags) if tags else []
+        self._category = category or "login"
+        if is_favorite is not None:
+            self._favorite = bool(is_favorite)
+        else:
+            self._favorite = bool(favorite)
+        self._totp_secret = totp_secret or ""
 
     def set_name(self, name):
         self._name = name
@@ -60,6 +81,33 @@ class Secret:
     def set_update_date(self, update_date):
         self._update_date = update_date
 
+    def get_tags(self):
+        return list(self._tags)
+
+    def set_tags(self, tags):
+        self._tags = list(tags) if tags else []
+
+    def get_category(self):
+        return self._category
+
+    def set_category(self, category):
+        self._category = category or "login"
+
+    def is_favorite(self):
+        return self._favorite
+
+    def get_favorite(self):
+        return self._favorite
+
+    def set_favorite(self, favorite):
+        self._favorite = bool(favorite)
+
+    def get_totp_secret(self):
+        return self._totp_secret
+
+    def set_totp_secret(self, totp_secret):
+        self._totp_secret = totp_secret or ""
+
     def to_dict(self):
         return {
             "name": self._name,
@@ -69,18 +117,31 @@ class Secret:
             "comments": self._comments,
             "created_at": self._create_date.isoformat(),
             "updated_at": self._update_date.isoformat() if self._update_date else None,
+            "tags": list(self._tags),
+            "category": self._category,
+            "favorite": self._favorite,
+            "is_favorite": self._favorite,
+            "totp_secret": self._totp_secret,
         }
 
     @classmethod
     def from_dict(cls, secret_payload):
+        # Support both 'favorite' and 'is_favorite' for backward compatibility
+        favorite_val = secret_payload.get("favorite")
+        if favorite_val is None:
+            favorite_val = secret_payload.get("is_favorite", False)
         return cls(
-            secret_payload.get("name", ""),
-            secret_payload.get("username", ""),
-            secret_payload.get("password", ""),
-            secret_payload.get("url", ""),
-            secret_payload.get("comments", ""),
+            name=secret_payload.get("name", ""),
+            username=secret_payload.get("username", ""),
+            password=secret_payload.get("password", ""),
+            url=secret_payload.get("url", ""),
+            comments=secret_payload.get("comments", ""),
             create_date=_parse_datetime(secret_payload.get("created_at")),
             update_date=_parse_datetime(secret_payload.get("updated_at")),
+            tags=secret_payload.get("tags") or [],
+            category=secret_payload.get("category", "login"),
+            favorite=bool(favorite_val),
+            totp_secret=secret_payload.get("totp_secret") or "",
         )
 
     def peak(self):

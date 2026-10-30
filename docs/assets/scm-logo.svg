@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background subtle radial gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#050811" />
+    </radialGradient>
+
+    <!-- Outer shield neon border gradient -->
+    <linearGradient id="shieldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="45%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <!-- Inner shield subtle glass fill -->
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.98" />
+    </linearGradient>
+
+    <!-- Vault Ring gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+
+    <!-- Shackle gradient -->
+    <linearGradient id="shackleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+
+    <!-- Glow filters for cyber-defense aesthetic -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Deep space background rounded container -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)" />
+  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#1e293b" stroke-width="2" />
+
+  <!-- Digital lattice / vault grid backdrop -->
+  <g opacity="0.12" stroke="#06b6d4" stroke-width="1.5">
+    <line x1="80" y1="120" x2="432" y2="120" />
+    <line x1="80" y1="200" x2="432" y2="200" />
+    <line x1="80" y1="280" x2="432" y2="280" />
+    <line x1="80" y1="360" x2="432" y2="360" />
+    <line x1="140" y1="80" x2="140" y2="432" />
+    <line x1="220" y1="80" x2="220" y2="432" />
+    <line x1="300" y1="80" x2="300" y2="432" />
+    <line x1="380" y1="80" x2="380" y2="432" />
+  </g>
+
+  <!-- Cybernetic Shield Container -->
+  <!-- Outer glowing shield -->
+  <path d="M 256 64
+           L 412 116
+           C 412 284 348 388 256 448
+           C 164 388 100 284 100 116
+           Z"
+        fill="url(#shieldFill)"
+        stroke="url(#shieldBorder)"
+        stroke-width="8"
+        stroke-linejoin="round"
+        filter="url(#neonGlow)" />
+
+  <!-- Inner shield circuit trace line -->
+  <path d="M 256 94
+           L 386 138
+           C 386 280 332 368 256 418
+           C 180 368 126 280 126 138
+           Z"
+        fill="none"
+        stroke="#10b981"
+        stroke-width="2.5"
+        stroke-dasharray="14 8"
+        opacity="0.45" />
+
+  <!-- Lock Shackle Arch with High-Tech Decoupled Gap (Envelope Encryption visual) -->
+  <path d="M 188 220
+           V 166
+           C 188 124 218 96 256 96
+           C 294 96 324 124 324 166
+           V 220"
+        fill="none"
+        stroke="url(#shackleGrad)"
+        stroke-width="24"
+        stroke-linecap="round" />
+
+  <!-- Center Vault Node: Cryptographic Lock Body & Rotating Safe Arc -->
+  <!-- Outer Rotating Calibration Ring -->
+  <circle cx="256" cy="272" r="86" fill="#090d16" stroke="url(#ringGrad)" stroke-width="7" />
+
+  <!-- Circuit nodes around ring -->
+  <circle cx="256" cy="186" r="4.5" fill="#10b981" />
+  <circle cx="342" cy="272" r="4.5" fill="#06b6d4" />
+  <circle cx="256" cy="358" r="4.5" fill="#6366f1" />
+  <circle cx="170" cy="272" r="4.5" fill="#10b981" />
+
+  <!-- Calibrated tick notches (45 degree angles) -->
+  <line x1="316" y1="212" x2="324" y2="204" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" />
+  <line x1="196" y1="332" x2="188" y2="340" stroke="#10b981" stroke-width="3" stroke-linecap="round" />
+  <line x1="316" y1="332" x2="324" y2="340" stroke="#6366f1" stroke-width="3" stroke-linecap="round" />
+  <line x1="196" y1="212" x2="188" y2="204" stroke="#10b981" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Inner core: The Sovereign Keyhole / Biometric Iris Node -->
+  <circle cx="256" cy="272" r="54" fill="#0f172a" stroke="#334155" stroke-width="3" />
+
+  <!-- High-Precision Cyber Keyway & TOTP Iris Core -->
+  <circle cx="256" cy="254" r="14" fill="none" stroke="#38bdf8" stroke-width="6" />
+  <polygon points="250,264 262,264 268,296 244,296" fill="#38bdf8" />
+
+  <!-- Pulse Core Accent -->
+  <circle cx="256" cy="254" r="5" fill="#34d399" />
+
+  <!-- Lower Sovereign Brand Monogram (SCM) etched securely -->
+  <text x="256" y="386"
+        font-family="'JetBrains Mono', 'Inter', monospace, sans-serif"
+        font-size="22"
+        font-weight="800"
+        letter-spacing="6"
+        fill="#94a3b8"
+        text-anchor="middle">SCM</text>
+  <circle cx="204" cy="380" r="2.5" fill="#10b981" />
+  <circle cx="308" cy="380" r="2.5" fill="#06b6d4" />
+</svg>
