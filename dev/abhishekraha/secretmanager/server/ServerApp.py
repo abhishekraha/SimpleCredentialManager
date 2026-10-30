@@ -154,10 +154,16 @@ def create_app(
         success, message = svc.authenticate(payload.password)
         if not success:
             lockout_info = svc.get_lockout_status()
+            # Sanitize message to prevent raw exception leakage
+            user_detail = "Invalid master password"
+            if "Too many failed attempts" in message:
+                user_detail = message
+            elif "cannot be empty" in message:
+                user_detail = message
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={
-                    "detail": message,
+                    "detail": user_detail,
                     "unlocked": False,
                     "lockout": lockout_info,
                 },
@@ -443,10 +449,10 @@ def create_app(
                             )
                         try:
                             decrypted_data = decrypt_payload(payload, device_token)
-                        except Exception as exc:
+                        except Exception:
                             return JSONResponse(
                                 status_code=status.HTTP_400_BAD_REQUEST,
-                                content={"detail": f"Failed to decrypt transport payload: {exc}"},
+                                content={"detail": "Failed to decrypt transport payload: invalid or malformed data"},
                             )
                         if isinstance(decrypted_data, (dict, list)):
                             new_body = json.dumps(decrypted_data).encode("utf-8")
