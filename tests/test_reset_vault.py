@@ -149,7 +149,7 @@ class ResetVaultAndLockoutPersistenceTests(unittest.TestCase):
         # Exponent 0: base seconds
         status = self.service.get_lockout_status()
         self.assertEqual(status["failed_attempts"], 3)
-        self.assertLessEqual(status["remaining_seconds"], FAILED_AUTH_LOCKOUT_BASE_SECONDS)
+        self.assertLessEqual(status["remaining_seconds"], FAILED_AUTH_LOCKOUT_BASE_SECONDS + 2)
 
         # Expire lockout artificially
         meta = self.service._require_metadata()

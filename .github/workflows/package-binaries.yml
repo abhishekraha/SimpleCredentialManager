@@ -246,5 +246,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.resolve-tag.outputs.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release upload "$TAG" dist-assets/* --clobber
+          gh release upload "$TAG" dist-assets/* --repo "$REPO" --clobber
