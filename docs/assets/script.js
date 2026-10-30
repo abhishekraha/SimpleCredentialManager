@@ -21,6 +21,38 @@ function switchTab(tabId) {
   });
 }
 
+// Mode View Switcher (Desktop Client vs Server Mode)
+function switchModeView(modeId) {
+  const desktopBtn = document.getElementById('btn-mode-desktop');
+  const serverBtn = document.getElementById('btn-mode-server');
+  const desktopPanel = document.getElementById('mode-desktop');
+  const serverPanel = document.getElementById('mode-server');
+
+  if (modeId === 'mode-desktop') {
+    if (desktopBtn) desktopBtn.classList.add('active');
+    if (serverBtn) serverBtn.classList.remove('active');
+    if (desktopPanel) {
+      desktopPanel.classList.add('active');
+      desktopPanel.style.display = 'block';
+    }
+    if (serverPanel) {
+      serverPanel.classList.remove('active');
+      serverPanel.style.display = 'none';
+    }
+  } else {
+    if (serverBtn) serverBtn.classList.add('active');
+    if (desktopBtn) desktopBtn.classList.remove('active');
+    if (serverPanel) {
+      serverPanel.classList.add('active');
+      serverPanel.style.display = 'block';
+    }
+    if (desktopPanel) {
+      desktopPanel.classList.remove('active');
+      desktopPanel.style.display = 'none';
+    }
+  }
+}
+
 // OS Quickstart Tabs
 function switchOsTab(osId) {
   const buttons = document.querySelectorAll('.os-tab');

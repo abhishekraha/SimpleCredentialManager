@@ -21,10 +21,11 @@
       <a href="#" class="brand-link">
         <img src="assets/scm-logo.svg" alt="SCM Logo" class="brand-logo-img" width="34" height="34">
         <span>SCM</span>
-        <span class="brand-tag">v3.0 Superpowers</span>
+        <span class="brand-tag">v3.1 Architecture</span>
       </a>
 
       <ul class="nav-links">
+        <li><a href="#modes">Operational Modes</a></li>
         <li><a href="#features">Superpowers</a></li>
         <li><a href="#quickstart">Quickstart</a></li>
         <li><a href="#architecture">Architecture</a></li>
@@ -45,6 +46,7 @@
     </div>
 
     <div id="mobileMenu" class="mobile-menu" style="display: none;">
+      <a href="#modes" onclick="toggleMobileMenu()">Operational Modes</a>
       <a href="#features" onclick="toggleMobileMenu()">Superpowers</a>
       <a href="#quickstart" onclick="toggleMobileMenu()">Quickstart</a>
       <a href="#architecture" onclick="toggleMobileMenu()">Architecture</a>
@@ -239,6 +241,144 @@
       <span class="txt-green">✔ WAL clean, PRAGMA integrity_check == ok.</span>
 
 <span class="txt-bold txt-green">OVERALL VAULT HEALTH SCORE: 100/100 (A+)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dual Operational Modes Section -->
+  <section id="modes" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">Deployment &amp; Workflows</div>
+        <h2 class="section-title">Two Sovereign Operational Modes</h2>
+        <p class="section-desc">
+          Choose the deployment model that best fits your workflow. Click either mode below to explore its architectural details and interface workflows.
+        </p>
+      </div>
+
+      <div class="modes-toggle-container">
+        <button type="button" class="mode-card-btn active" id="btn-mode-desktop" onclick="switchModeView('mode-desktop')">
+          <div class="mode-card-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <div class="mode-card-header">
+            <h3>Mode 1: Standalone Desktop Client</h3>
+            <span class="mode-card-sub">Air-gapped local workstation &bull; PySide6 GUI &bull; Rich CLI</span>
+          </div>
+        </button>
+
+        <button type="button" class="mode-card-btn" id="btn-mode-server" onclick="switchModeView('mode-server')">
+          <div class="mode-card-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+              <line x1="6" y1="6" x2="6.01" y2="6"/>
+              <line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+          </div>
+          <div class="mode-card-header">
+            <h3>Mode 2: SCM Server Mode &amp; Dashboard</h3>
+            <span class="mode-card-sub">Self-hosted background service &bull; WebCrypto AES-GCM &bull; Device Whitelist</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Detail Panels -->
+      <div id="mode-desktop" class="mode-detail-panel active">
+        <div class="mode-content-grid">
+          <div class="mode-text-col">
+            <div class="badge-pill" style="margin-bottom: 1rem;">
+              <span class="badge-dot"></span>
+              <span>Workstation Sovereign Security</span>
+            </div>
+            <h3>Air-Gapped, Zero-Cloud Desktop Operation</h3>
+            <p>
+              Mode 1 operates entirely locally on your physical machine with zero network listening sockets or external communication. Designed for developers and security analysts who require immediate access to credentials directly from their desktop or development shell.
+            </p>
+            <ul class="feature-list" style="margin: 1.5rem 0;">
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Modern 3-Pane Desktop GUI (PySide6)</strong>: Dark &amp; Light themes, live search filter, categories, and tags.</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>RFC 6238 TOTP Arc</strong>: Embedded circular SVG/Qt countdown timer with 1-click token copying.</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Rich / Typer CLI</strong>: Terminal tables, clipboard auto-erase in 30 seconds, and scriptable headless JSON output.</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Inactivity Auto-Lock</strong>: Memory is zeroed via <code>SecureBuffer</code> after 60 seconds of idle time.</li>
+            </ul>
+            <div class="code-snippet">
+              <code># Launch Modern Desktop UI<br>python SimpleCredentialManagerUi.py<br><br># Launch Interactive CLI<br>python SimpleCredentialManagerCli.py interactive</code>
+              <button class="copy-btn" onclick="copyCode(this, 'python SimpleCredentialManagerUi.py')">Copy</button>
+            </div>
+          </div>
+          <div class="mode-visual-col">
+            <div class="terminal-window">
+              <div class="terminal-header">
+                <span class="term-dot dot-red"></span>
+                <span class="term-dot dot-yellow"></span>
+                <span class="term-dot dot-green"></span>
+                <span class="terminal-title">Desktop Mode Workflow</span>
+              </div>
+              <div class="cmd-output" style="font-size: 0.85rem; padding: 1.25rem;">
+                <span class="txt-cyan txt-bold">1. Vault Locked:</span> ~/.simpleCredentialManager/vault.scmdb<br>
+                <span class="txt-dim">Encrypted via Argon2id (64MB) + Two-Tier Envelope (KEK/DEK)</span><br><br>
+                <span class="txt-green txt-bold">2. Master Password Prompt:</span><br>
+                Enter master password: [••••••••••••••••]<br>
+                <span class="txt-dim">Deriving KEK -&gt; Unwrapping 256-bit DEK into SecureBuffer RAM</span><br><br>
+                <span class="txt-cyan txt-bold">3. Active Session (60s Inactivity Timer):</span><br>
+                • Blind Index lookups in O(1) via HMAC-SHA256<br>
+                • Sensitive clipboard protected by OS privacy exclusion flags<br>
+                • 30s automatic clipboard memory erase
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="mode-server" class="mode-detail-panel" style="display: none;">
+        <div class="mode-content-grid">
+          <div class="mode-text-col">
+            <div class="badge-pill" style="margin-bottom: 1rem; border-color: rgba(6, 182, 212, 0.4);">
+              <span class="badge-dot" style="background: var(--cyan-400);"></span>
+              <span>Self-Hosted &bull; WebCrypto AES-GCM</span>
+            </div>
+            <h3>SCM Server Mode &amp; Zero-Dependency Web Dashboard</h3>
+            <p>
+              Mode 2 hosts Simple Credential Manager as a lightweight, hardened web daemon. Ideal for home servers, self-hosted Raspberry Pis, or reverse-proxy subpaths (e.g. <code>/password/</code>) behind Nginx with hardware device whitelisting.
+            </p>
+            <ul class="feature-list" style="margin: 1.5rem 0;">
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Physical Out-of-Band Whitelisting</strong>: Devices register via a secret token (<code>/enroll?secret=...</code>) and can <em>strictly</em> only be approved locally on the server host machine via the CLI (<code>scm server devices approve &lt;fingerprint&gt;</code>).</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Subtle 404 Defense</strong>: Unauthorized requests receive nondescript <code>HTTP 404 {"detail": "Service unavailable"}</code>, thwarting port scanners and honeypot crawlers.</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Device-Bound WebCrypto Transport Encryption</strong>: Request payloads (passwords, master unlock, secret CRUD) are encrypted client-side using AES-256-GCM keyed via HKDF from the approved device token.</li>
+              <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> <strong>Docker Containerized</strong>: Unprivileged UID 10001, persistent volume mounts for vault data/config, and internal CLI alias.</li>
+            </ul>
+            <div class="code-snippet">
+              <code># Start Server Mode via CLI<br>scm server start --host 0.0.0.0 --port 8080<br><br># Or run with Docker Compose<br>docker compose -f container/docker-compose.yml up -d --build<br><br># Approve Device on Server Host CLI<br>scm server devices approve &lt;fingerprint_or_id&gt;</code>
+              <button class="copy-btn" onclick="copyCode(this, 'scm server start --host 0.0.0.0 --port 8080')">Copy</button>
+            </div>
+          </div>
+          <div class="mode-visual-col">
+            <div class="terminal-window">
+              <div class="terminal-header">
+                <span class="term-dot dot-red"></span>
+                <span class="term-dot dot-yellow"></span>
+                <span class="term-dot dot-green"></span>
+                <span class="terminal-title">Server Mode Workflow</span>
+              </div>
+              <div class="cmd-output" style="font-size: 0.85rem; padding: 1.25rem;">
+                <span class="txt-cyan txt-bold">1. Device Enrollment Request:</span><br>
+                POST /devices/enroll?secret=... &rarr; <span class="txt-yellow">PENDING</span><br>
+                Device Fingerprint: <span class="txt-dim font-mono">1a570153b65a8df...</span><br><br>
+                <span class="txt-green txt-bold">2. Local Host Physical Approval:</span><br>
+                <span class="cmd-prompt">host@server:~$</span> scm server devices approve 1a570153...<br>
+                <span class="txt-green">✔ Device 'Windows PC (Chrome)' approved.</span><br><br>
+                <span class="txt-cyan txt-bold">3. Device-Bound AES-256-GCM Transport:</span><br>
+                Browser HKDF(DeviceToken) &rarr; WebCrypto AES-GCM Encrypt<br>
+                Server Decrypts Payload &rarr; Validates Unlock Password<br><br>
+                <span class="txt-dim">Unapproved probes receive 404 Service unavailable</span>
+              </div>
             </div>
           </div>
         </div>

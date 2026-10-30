@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>Simple Credential Manager</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <!-- App Container -->
+  <div id="app" class="app-layout">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- 1. ENROLLMENT VIEW -->
+    <section id="view-enroll" class="view-panel center-card-view hidden">
+      <div class="auth-card">
+        <div class="card-brand">
+          <div class="brand-shield-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h1>Device Enrollment</h1>
+          <p class="card-subtitle">Authorize this device to access Simple Credential Manager</p>
+        </div>
+
+        <!-- 1.1 Device Already Approved State Banner -->
+        <div id="enroll-approved-state" class="enroll-approved-card hidden">
+          <div class="approved-banner">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="approved-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div>
+              <span>This device is already registered and approved as '<strong id="enroll-approved-device-name">Device</strong>'.</span>
+            </div>
+          </div>
+          <div class="enroll-approved-actions">
+            <button type="button" id="btn-goto-unlock" class="btn btn-primary btn-block">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              Go to Vault Unlock
+            </button>
+            <div class="re-enroll-wrapper">
+              <button type="button" id="btn-re-register" class="link-btn text-muted">Re-register as a new device</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="enroll-form-state">
+          <form id="enroll-form">
+            <div class="form-group">
+              <label for="enroll-device-name">Device Name</label>
+              <input type="text" id="enroll-device-name" class="input-field" placeholder="e.g. MacBook Pro, Chrome on Windows" required autocomplete="off">
+              <span class="field-hint">Identify this device in your server's trusted device list.</span>
+            </div>
+
+            <div class="form-group hidden" id="enroll-secret-wrapper">
+              <label for="enroll-secret-token">Enrollment Secret</label>
+              <input type="password" id="enroll-secret-token" class="input-field" placeholder="Enter server enrollment secret" autocomplete="off">
+            </div>
+
+            <button type="submit" id="btn-submit-enroll" class="btn btn-primary btn-block">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              Register Device
+            </button>
+          </form>
+        </div>
+
+        <div id="enroll-waiting-state" class="enroll-waiting hidden">
+          <div class="pulse-indicator">
+            <div class="pulse-ring"></div>
+            <div class="pulse-dot"></div>
+          </div>
+          <h3>Device Submitted!</h3>
+          <p class="waiting-instruction">Device Fingerprint</p>
+          <div class="code-box fingerprint-box">
+            <code id="enroll-fp-display" class="font-mono">-</code>
+            <button type="button" id="btn-copy-fingerprint" class="btn-copy-sm" title="Copy Fingerprint">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <p class="waiting-helper-text">Provide this fingerprint to your server administrator for approval.</p>
+          <p class="polling-status">Waiting for host approval<span class="dots">...</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. VAULT UNLOCK VIEW -->
+    <section id="view-unlock" class="view-panel center-card-view hidden">
+      <div class="auth-card">
+        <div class="card-brand">
+          <div class="brand-shield-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h1>Unlock Vault</h1>
+          <p class="card-subtitle">Enter your master password to unlock your credentials</p>
+        </div>
+
+        <div id="lockout-warning" class="lockout-banner hidden">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>
+            <strong>Vault Locked Out</strong>
+            <p id="lockout-message">Too many failed attempts. Try again in <span id="lockout-timer">30</span>s.</p>
+          </div>
+        </div>
+
+        <form id="unlock-form">
+          <div class="form-group">
+            <label for="unlock-password">Master Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="unlock-password" class="input-field" placeholder="••••••••••••••••" required autofocus autocomplete="current-password">
+              <button type="button" class="btn-icon-inside toggle-pw-btn" data-target="unlock-password" title="Toggle visibility">
+                <svg class="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-submit-unlock" class="btn btn-primary btn-block">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            Unlock Vault
+          </button>
+        </form>
+
+        <div class="auth-card-footer">
+          <span class="device-pill">Trusted Device <span id="trusted-device-name"></span></span>
+          <button type="button" id="btn-forget-device" class="link-btn text-muted">Forget Device</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. MAIN DASHBOARD VIEW -->
+    <section id="view-dashboard" class="view-panel dashboard-layout hidden">
+      <!-- Top Navigation Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <div class="brand-title">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="brand-icon">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span class="app-title-text">Simple Credential Manager</span>
+            <span class="badge-status badge-live">Vault Unlocked</span>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="search-bar-wrapper">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="global-search" class="search-input" placeholder="Search credentials by title, username, domain or tag... ( / )" autocomplete="off">
+            <button type="button" id="btn-clear-search" class="btn-clear-search hidden" title="Clear search">×</button>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <button type="button" id="btn-add-secret-top" class="btn btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>New Secret</span>
+          </button>
+          <button type="button" id="btn-lock-vault" class="btn btn-secondary btn-sm" title="Lock Vault Now">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Lock</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Workspace -->
+      <div class="dashboard-body">
+        <!-- Sidebar Navigation / Filters -->
+        <aside class="sidebar-nav">
+          <div class="sidebar-section-title">Categories</div>
+          <ul class="nav-filter-list">
+            <li class="nav-item active" data-filter-type="category" data-filter-value="all">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <span>All Items</span>
+              <span class="count-badge" id="count-all">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="category" data-filter-value="login">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Logins</span>
+              <span class="count-badge" id="count-login">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="category" data-filter-value="card">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+              <span>Cards</span>
+              <span class="count-badge" id="count-card">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="category" data-filter-value="server">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              <span>Servers</span>
+              <span class="count-badge" id="count-server">0</span>
+            </li>
+            <li class="nav-item" data-filter-type="category" data-filter-value="note">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>Secure Notes</span>
+              <span class="count-badge" id="count-note">0</span>
+            </li>
+          </ul>
+
+          <div class="sidebar-section-title">Quick Filters</div>
+          <ul class="nav-filter-list">
+            <li class="nav-item" data-filter-type="favorites" data-filter-value="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" class="star-gold"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span>Favorites</span>
+              <span class="count-badge" id="count-favorites">0</span>
+            </li>
+          </ul>
+
+          <div class="sidebar-footer">
+            <div class="security-status-card">
+              <div class="sec-dot"></div>
+              <div class="sec-text">
+                <span class="sec-label">Device Whitelisted</span>
+                <span class="sec-sub" id="sidebar-device-id">ID: -</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Center List Pane -->
+        <main class="secrets-list-pane">
+          <div class="list-pane-header">
+            <div class="list-header-info">
+              <h2 id="current-view-heading">All Items</h2>
+              <span id="filtered-items-count" class="text-muted">0 items</span>
+            </div>
+            <div class="list-sort-toggle">
+              <button type="button" id="btn-toggle-sort" class="btn-sort" title="Sort A-Z / Z-A">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 18V4"/></svg>
+                <span id="sort-order-label">A-Z</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Secret Items Container -->
+          <div id="secrets-items-container" class="secrets-items-list" role="list">
+            <!-- Dynamic secret items injected here -->
+          </div>
+
+          <!-- Empty state when no items -->
+          <div id="empty-state-list" class="empty-state-card hidden">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <h3>No Credentials Found</h3>
+            <p id="empty-state-message">No secrets match your active search or category filter.</p>
+            <button type="button" id="btn-empty-add" class="btn btn-primary btn-sm">Add New Secret</button>
+          </div>
+        </main>
+
+        <!-- Right Secret Detail Pane -->
+        <section class="secret-detail-pane" id="secret-detail-pane">
+          <!-- Shown when a secret is selected -->
+          <div id="detail-content" class="detail-content hidden">
+            <div class="detail-header">
+              <div class="detail-title-group">
+                <div class="detail-icon-pill" id="detail-category-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div>
+                  <div class="detail-heading-row">
+                    <h2 id="detail-name">-</h2>
+                    <button type="button" id="btn-detail-fav" class="btn-fav-star" title="Toggle Favorite">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </button>
+                  </div>
+                  <div class="detail-meta-badges">
+                    <span id="detail-category-badge" class="badge-cat">Login</span>
+                    <span id="detail-domain" class="badge-domain hidden">domain.com</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="detail-actions">
+                <button type="button" id="btn-edit-secret" class="btn btn-secondary btn-sm">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+                <button type="button" id="btn-delete-secret" class="btn btn-danger-outline btn-sm">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <!-- Fields container -->
+            <div class="detail-fields-list">
+              <!-- Username Field -->
+              <div class="detail-field-card">
+                <div class="field-header">
+                  <span class="field-title">Username / Account</span>
+                  <button type="button" class="btn-copy-action" id="btn-copy-username" data-target="detail-username" title="Copy Username">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <div class="field-value-text" id="detail-username">-</div>
+              </div>
+
+              <!-- Password Field -->
+              <div class="detail-field-card">
+                <div class="field-header">
+                  <span class="field-title">Password</span>
+                  <div class="field-actions-inline">
+                    <button type="button" class="btn-icon-sm" id="btn-toggle-detail-password" title="Reveal Password">
+                      <svg class="icon-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      <svg class="icon-eye-off hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    </button>
+                    <button type="button" class="btn-copy-action" id="btn-copy-password" title="Copy Password">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      <span>Copy</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field-value-text font-mono" id="detail-password">••••••••••••••••</div>
+              </div>
+
+              <!-- TOTP Two-Factor Authenticator Card -->
+              <div id="totp-field-wrapper" class="detail-field-card totp-card hidden">
+                <div class="field-header">
+                  <div class="totp-header-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span class="field-title">One-Time Password (TOTP)</span>
+                  </div>
+                  <button type="button" class="btn-copy-action" id="btn-copy-totp" title="Copy TOTP Code">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <div class="totp-body">
+                  <div class="totp-code-display font-mono" id="totp-code-text">------</div>
+                  <!-- Circular Countdown Arc SVG -->
+                  <div class="totp-arc-wrapper">
+                    <svg class="totp-arc-svg" width="46" height="46" viewBox="0 0 46 46">
+                      <circle class="totp-arc-bg" cx="23" cy="23" r="18" fill="none" stroke-width="3"/>
+                      <circle class="totp-arc-fill" id="totp-arc-indicator" cx="23" cy="23" r="18" fill="none" stroke-width="3" stroke-dasharray="113.1" stroke-dashoffset="0" transform="rotate(-90 23 23)"/>
+                    </svg>
+                    <span class="totp-countdown-number" id="totp-seconds-label">30</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Website URL -->
+              <div id="url-field-wrapper" class="detail-field-card hidden">
+                <div class="field-header">
+                  <span class="field-title">Website URL</span>
+                  <a href="#" target="_blank" rel="noopener noreferrer" id="detail-url-link" class="btn-external-link">
+                    <span>Open URL</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                </div>
+                <div class="field-value-text link-text" id="detail-url">-</div>
+              </div>
+
+              <!-- Tags list -->
+              <div id="tags-field-wrapper" class="detail-field-card hidden">
+                <span class="field-title">Tags</span>
+                <div class="tags-container" id="detail-tags-list"></div>
+              </div>
+
+              <!-- Comments / Notes -->
+              <div id="comments-field-wrapper" class="detail-field-card hidden">
+                <span class="field-title">Notes & Comments</span>
+                <div class="field-notes-text" id="detail-comments">-</div>
+              </div>
+
+              <!-- Timestamps metadata -->
+              <div class="detail-timestamps-meta">
+                <span>Created: <span id="detail-created-at">-</span></span>
+                <span id="detail-updated-row" class="hidden">Updated: <span id="detail-updated-at">-</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty detail prompt -->
+          <div id="detail-placeholder" class="detail-placeholder">
+            <div class="placeholder-icon">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3>Select a Credential</h3>
+            <p>Choose an item from the list to view secure credentials, generate TOTP codes, and copy passwords.</p>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 4. ADD / EDIT SECRET MODAL -->
+    <div id="modal-secret-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3 id="modal-title">New Credential</h3>
+          <button type="button" id="btn-close-modal" class="btn-close-x" title="Close">×</button>
+        </div>
+
+        <form id="form-secret-editor" class="modal-body">
+          <input type="hidden" id="editor-original-name" value="">
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="editor-name">Title / Account Name <span class="required">*</span></label>
+              <input type="text" id="editor-name" class="input-field" placeholder="e.g. GitHub, Google, AWS Console" required autocomplete="off">
+            </div>
+            <div class="form-group flex-1">
+              <label for="editor-category">Category</label>
+              <select id="editor-category" class="input-field select-field">
+                <option value="login">Login</option>
+                <option value="card">Card</option>
+                <option value="server">Server</option>
+                <option value="note">Secure Note</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editor-username">Username / Email / Identifier</label>
+            <input type="text" id="editor-username" class="input-field" placeholder="e.g. user@example.com" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <div class="label-with-action">
+              <label for="editor-password">Password / Secret Key <span class="required">*</span></label>
+              <button type="button" id="btn-generate-password" class="btn-link-action">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                Generate Strong
+              </button>
+            </div>
+            <div class="password-input-wrapper">
+              <input type="password" id="editor-password" class="input-field font-mono" placeholder="••••••••••••••••" required autocomplete="new-password">
+              <button type="button" class="btn-icon-inside toggle-pw-btn" data-target="editor-password" title="Toggle visibility">
+                <svg class="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editor-url">Website URL</label>
+            <input type="url" id="editor-url" class="input-field" placeholder="https://example.com/login" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="editor-totp">TOTP Authenticator Secret Key (Base32 or otpauth://)</label>
+            <input type="text" id="editor-totp" class="input-field font-mono" placeholder="JBSWY3DPEHPK3PXP" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="editor-tags">Tags (comma separated)</label>
+            <input type="text" id="editor-tags" class="input-field" placeholder="work, banking, personal" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="editor-comments">Notes / Comments</label>
+            <textarea id="editor-comments" class="input-field textarea-field" rows="3" placeholder="Security questions, recovery codes, server specs..."></textarea>
+          </div>
+
+          <div class="form-check-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="editor-is-favorite">
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-label">Mark as Favorite</span>
+            </label>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="btn-cancel-modal" class="btn btn-secondary">Cancel</button>
+            <button type="submit" id="btn-save-modal" class="btn btn-primary">Save Credential</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 5. DELETE CONFIRMATION MODAL -->
+    <div id="modal-delete-confirm" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-dialog modal-sm">
+        <div class="modal-header">
+          <h3>Delete Credential</h3>
+          <button type="button" id="btn-close-delete-modal" class="btn-close-x">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to permanently delete <strong id="delete-secret-name-label"></strong>?</p>
+          <p class="text-danger-sm">This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-cancel-delete" class="btn btn-secondary">Cancel</button>
+          <button type="button" id="btn-confirm-delete" class="btn btn-danger">Delete</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="static/app.js"></script>
+</body>
+</html>

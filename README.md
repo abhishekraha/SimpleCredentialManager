@@ -14,25 +14,25 @@ Simple Credential Manager is a high-assurance, sovereign, local-first credential
 
 ```
        ┌────────────────────────────────────────────────────────┐
-       │   Simple Credential Manager — Dual Interface (v3.0)   │
+       │   Simple Credential Manager — Multi-Interface (v3.1)  │
        └────────────────────────────────────────────────────────┘
-                 │                                    │
-                 ▼                                    ▼
-       [ Modern PySide6 Desktop UI ]       [ Modern Rich/Typer CLI ]
-       (Dark/Light, TOTP Arc, 3-Pane)      (Interactive & Headless)
-                 │                                    │
-                 └─────────────────┬──────────────────┘
-                                   ▼
-                   [ SecretManagerService Core ]
-                                   │
-              ┌────────────────────┴────────────────────┐
-              ▼                                         ▼
-   [ Envelope KEK / DEK ]                    [ SecureBuffer RAM ]
-    Argon2id (64MB / 3-iter)                  Explicit C-style memset
-              │                                         │
-              ▼                                         ▼
-   [ SQLite WAL Row-Level AEAD ]             [ Zero-Trace Clipboard ]
-    AES-256-GCM + Blind Index                 30s auto-erase + OS flags
+                 │                       │                    │
+                 ▼                       ▼                    ▼
+       [ PySide6 Desktop UI ]  [ Rich / Typer CLI ]  [ Web Dashboard / Server ]
+       (Dark/Light, TOTP Arc)  (Interactive/Headless) (Device Whitelist & AES-GCM)
+                 │                       │                    │
+                 └───────────────────────┼────────────────────┘
+                                         ▼
+                           [ SecretManagerService Core ]
+                                         │
+                    ┌────────────────────┴────────────────────┐
+                    ▼                                         ▼
+         [ Envelope KEK / DEK ]                    [ SecureBuffer RAM ]
+          Argon2id (64MB / 3-iter)                  Explicit C-style memset
+                    │                                         │
+                    ▼                                         ▼
+         [ SQLite WAL Row-Level AEAD ]             [ Zero-Trace Clipboard ]
+          AES-256-GCM + Blind Index                 30s auto-erase + OS flags
 ```
 
 ---
@@ -58,15 +58,55 @@ Simple Credential Manager is a high-assurance, sovereign, local-first credential
 
 ---
 
+## Deployment & Operational Modes
+
+Simple Credential Manager operates in two primary modes:
+- [🖥️ **Standalone Desktop Client Mode**](#-mode-1-standalone-desktop-client-mode) — Sovereign, local-machine operation with Desktop GUI and Rich CLI.
+- [🌐 **SCM Server Mode & Web Dashboard**](#-mode-2-scm-server-mode--web-dashboard) — Self-hosted background daemon with out-of-band device whitelisting, subtle 404 defense, WebCrypto AES-256-GCM transport encryption, and Docker support.
+
+---
+
+### 🖥️ Mode 1: Standalone Desktop Client Mode
+Designed for personal workstations, air-gapped systems, and local development.
+- **Desktop UI (`PySide6`)**: Responsive 3-pane layout, dark/light theme, live TOTP countdown arc widget, and password health auditing.
+- **Modern CLI (`Typer` + `Rich`)**: Colored tables, live TOTP copy, password audit commands, and headless JSON output.
+- **Zero Network Footprint**: Plaintext secrets exist solely in process RAM protected by `SecureBuffer` (C-style memset on lock) with 60-second inactivity timeouts.
+
+```bash
+# Launch Modern Desktop UI
+python SimpleCredentialManagerUi.py
+
+# Launch Modern Interactive CLI
+python SimpleCredentialManagerCli.py interactive
+```
+
+---
+
+### 🌐 Mode 2: SCM Server Mode & Web Dashboard
+Designed for self-hosted home labs, VPS instances, or remote access behind Nginx reverse proxies (e.g., `/password/`).
+- **Web Dashboard**: Modern, zero-dependency single-page application with responsive UI, live TOTP countdown arcs, and quick copy.
+- **Out-of-Band Physical Device Whitelisting**: Client browsers register via a one-time secret enrollment URL (`/enroll?secret=...`). Registration generates a unique device fingerprint that **can only be approved locally on the server host machine** using the CLI:
+  ```bash
+  scm server devices approve <fingerprint_or_id>
+  ```
+- **Subtle Unauthorized Defense**: Any unapproved or unauthorized device receives an indistinguishable `HTTP 404 Not Found` with `{"detail": "Service unavailable"}` to defend against internet scanners.
+- **Device-Bound Transport Payload Encryption**: Client browsers automatically encrypt all request payloads (including master password and secret CRUD) via WebCrypto AES-256-GCM using an HKDF-SHA256 key derived from their approved device token.
+- **Docker Ready**: Deploy effortlessly with persistent volumes and unprivileged UID 10001:
+  ```bash
+  docker compose -f container/docker-compose.yml up -d --build
+  ```
+
+---
+
 ## User Interfaces
 
-### 1. Modern Desktop UI (Default)
+### 1. Modern Desktop UI
 Built with PySide6:
 - **Master Password Prompt On Open**: Prompts for master password entry before revealing any vault data.
 - **3-Pane Layout**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, and comprehensive details panel.
 - **Integrated TOTP Arc**: Live countdown animation and one-click TOTP token copying.
 - **Password Generator & Health Audit**: Live entropy scores, duplicate detection, and optional HaveIBeenPwned k-anonymity leak audits.
-- **Theme Switcher**: Button in the sidebar to toggle between Modern UI and Classic Tkinter UI with immediate or restart prompts.
+- **Theme Switcher**: Button in the sidebar to toggle between Modern UI and Classic Tkinter UI.
 
 ### 2. Modern Rich CLI
 Interactive and headless commands powered by Typer and Rich:
@@ -85,6 +125,13 @@ python SimpleCredentialManagerCli.py health --breaches
 
 # Interactive full terminal menu
 python SimpleCredentialManagerCli.py interactive
+
+# SCM Server Mode commands
+scm server start --host 0.0.0.0 --port 8080
+scm server devices list
+scm server devices approve <fingerprint>
+scm server devices revoke <device_id>
+scm server devices token --show
 ```
 
 ---
@@ -117,6 +164,12 @@ python SimpleCredentialManagerUi.py
 
 # Launch Interactive CLI
 python SimpleCredentialManagerCli.py
+
+# Launch SCM Server Mode
+scm server start --host 0.0.0.0 --port 8080
+
+# Or run with Docker Compose
+docker compose -f container/docker-compose.yml up -d --build
 ```
 
 *Or use the dedicated platform launcher scripts located in `scripts/launchers/`:*

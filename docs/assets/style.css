@@ -1370,3 +1370,116 @@ body.modal-open {
     justify-content: center;
   }
 }
+
+/* ==============================================================================
+   Operational Modes Section
+   ============================================================================== */
+.modes-toggle-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.mode-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(12px);
+  color: var(--text-main);
+}
+
+.mode-card-btn:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.mode-card-btn.active {
+  border-color: var(--emerald-500);
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.15);
+}
+
+#btn-mode-server.active {
+  border-color: var(--cyan-500);
+  background: rgba(6, 182, 212, 0.08);
+  box-shadow: 0 0 25px rgba(6, 182, 212, 0.15);
+}
+
+.mode-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  color: var(--emerald-400);
+  flex-shrink: 0;
+}
+
+#btn-mode-server .mode-card-icon {
+  color: var(--cyan-400);
+}
+
+.mode-card-header h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.mode-card-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.mode-detail-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.mode-content-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+.mode-text-col h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.mode-text-col p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .modes-toggle-container {
+    grid-template-columns: 1fr;
+  }
+  .mode-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
