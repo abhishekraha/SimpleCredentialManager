@@ -10,9 +10,9 @@ The resulting binaries **embed the Python interpreter and all compiled cryptogra
 
 | Script | Platform | Output Files |
 | :--- | :--- | :--- |
-| **`build-windows.bat`** | Windows Command Prompt | `dist/scm.exe` (CLI)<br>`dist/SimpleCredentialManagerUi.exe` (GUI) |
-| **`build-windows.ps1`** | Windows PowerShell | `dist/scm.exe` (CLI)<br>`dist/SimpleCredentialManagerUi.exe` (GUI) |
-| **`build-unix.sh`** | macOS / Linux Bash | `dist/scm` (CLI)<br>`dist/SimpleCredentialManagerUi` (GUI / macOS `.app`) |
+| **`build-windows.bat`** | Windows Command Prompt | `dist/SimpleCredentialManager-CLI.exe` (CLI)<br>`dist/SimpleCredentialManager-UI.exe` (GUI) |
+| **`build-windows.ps1`** | Windows PowerShell | `dist/SimpleCredentialManager-CLI.exe` (CLI)<br>`dist/SimpleCredentialManager-UI.exe` (GUI) |
+| **`build-unix.sh`** | macOS / Linux Bash | `dist/SimpleCredentialManager-CLI` (CLI)<br>`dist/SimpleCredentialManager-UI` (GUI / macOS `.app`) |
 
 ---
 
@@ -36,5 +36,5 @@ chmod +x scripts/local-builder/build-unix.sh
 
 ## Output Location
 The compiled single-file executables are placed in the root **`dist/`** directory:
-* **`dist/scm.exe` / `dist/scm`**: The interactive terminal & scriptable CLI tool.
-* **`dist/SimpleCredentialManagerUi.exe` / `dist/SimpleCredentialManagerUi`**: The native desktop graphical application.
+* **`dist/SimpleCredentialManager-CLI.exe` / `dist/SimpleCredentialManager-CLI`**: The interactive terminal & scriptable CLI tool.
+* **`dist/SimpleCredentialManager-UI.exe` / `dist/SimpleCredentialManager-UI`**: The native desktop graphical application.

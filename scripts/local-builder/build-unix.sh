@@ -26,9 +26,9 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt pyinstaller
 
 echo ""
-echo "[*] Building Standalone CLI Binary (dist/scm)..."
+echo "[*] Building Standalone CLI Binary (dist/SimpleCredentialManager-CLI)..."
 python3 -m PyInstaller --clean --noconfirm --onefile \
-    --name scm \
+    --name SimpleCredentialManager-CLI \
     --collect-all cryptography \
     --collect-all pwinput \
     --collect-all pyotp \
@@ -38,11 +38,11 @@ python3 -m PyInstaller --clean --noconfirm --onefile \
     SimpleCredentialManagerCli.py
 
 echo ""
-echo "[*] Building Standalone Desktop UI Binary (dist/SimpleCredentialManagerUi)..."
+echo "[*] Building Standalone Desktop UI Binary (dist/SimpleCredentialManager-UI)..."
 if [ "$OS_NAME" = "Darwin" ]; then
     # macOS windowed build
     python3 -m PyInstaller --clean --noconfirm --onefile --windowed \
-        --name SimpleCredentialManagerUi \
+        --name SimpleCredentialManager-UI \
         --collect-all cryptography \
         --collect-all pwinput \
         --collect-all pyotp \
@@ -54,7 +54,7 @@ if [ "$OS_NAME" = "Darwin" ]; then
 else
     # Linux build
     python3 -m PyInstaller --clean --noconfirm --onefile \
-        --name SimpleCredentialManagerUi \
+        --name SimpleCredentialManager-UI \
         --collect-all cryptography \
         --collect-all pwinput \
         --collect-all pyotp \
@@ -70,8 +70,8 @@ echo "======================================================"
 echo "   Build Completed Successfully!"
 echo "======================================================"
 echo "Binaries created:"
-echo "  - CLI:  $REPO_ROOT/dist/scm"
-echo "  - GUI:  $REPO_ROOT/dist/SimpleCredentialManagerUi"
+echo "  - CLI:  $REPO_ROOT/dist/SimpleCredentialManager-CLI"
+echo "  - GUI:  $REPO_ROOT/dist/SimpleCredentialManager-UI"
 echo ""
 echo "These are standalone executables that run without needing"
 echo "Python installed on the target machine."
