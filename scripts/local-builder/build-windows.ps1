@@ -59,7 +59,9 @@ Write-Host "[*] Building Standalone Desktop UI (dist\SimpleCredentialManager-UI.
     --collect-all pyotp `
     --collect-all rich `
     --collect-all typer `
-    --collect-all PySide6 `
+    --collect-all PySide6 ` 
+    --collect-all httpx ` 
+    --collect-all pynput `
     @addBinaryArg `
     --add-data "dev;dev" `
     SimpleCredentialManagerUi.py

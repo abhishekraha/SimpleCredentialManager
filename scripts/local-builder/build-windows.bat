@@ -51,6 +51,8 @@ python -m PyInstaller --clean --noconfirm --onefile ^
     --collect-all rich ^
     --collect-all typer ^
     --collect-all PySide6 ^
+    --collect-all httpx ^
+    --collect-all pynput ^
     --add-binary "C:\Python315\abi3t-compat\python3t.dll;." ^
     --add-data "dev;dev" ^
     SimpleCredentialManagerUi.py

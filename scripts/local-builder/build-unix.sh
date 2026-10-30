@@ -49,6 +49,8 @@ if [ "$OS_NAME" = "Darwin" ]; then
         --collect-all rich \
         --collect-all typer \
         --collect-all PySide6 \
+        --collect-all httpx \
+        --collect-all pynput \
         --add-data "dev:dev" \
         SimpleCredentialManagerUi.py
 else
@@ -61,6 +63,8 @@ else
         --collect-all rich \
         --collect-all typer \
         --collect-all PySide6 \
+        --collect-all httpx \
+        --collect-all pynput \
         --add-data "dev:dev" \
         SimpleCredentialManagerUi.py
 fi
