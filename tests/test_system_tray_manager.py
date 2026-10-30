@@ -75,8 +75,9 @@ class TestSystemTrayManager(unittest.TestCase):
             self.mock_main_window.hide.assert_called_once()
 
     def test_on_tray_activated_single_click(self):
-        self.tray.on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
-        self.mock_palette.show_centered.assert_called_once()
+        with patch.object(self.tray, "show_popover") as mock_popover:
+            self.tray.on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+            mock_popover.assert_called_once()
 
     def test_on_tray_activated_double_click(self):
         self.tray.on_tray_activated(QSystemTrayIcon.ActivationReason.DoubleClick)

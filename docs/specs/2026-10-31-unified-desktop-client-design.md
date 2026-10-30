@@ -15,8 +15,10 @@ Currently, desktop users interact with local vaults through the full `PySide6` o
 
 This design unifies both paradigms under a single, cohesive desktop experience offering **three interchangeable presentation modes**:
 1. **Floating Command Palette**: A lightweight, borderless search window summoned via a global system hotkey (`Ctrl+Shift+Space` / `Cmd+Shift+Space`), designed for sub-second fuzzy search, Enter-to-copy password with 30s auto-erase, and automatic blur-dismissal.
-2. **System Tray Daemon**: A persistent icon in the Windows notification tray / macOS menu bar displaying connection status, live TOTP countdown arcs, quick-access favorites, and one-click vault locking.
-3. **Full Management Window**: The comprehensive 3-pane desktop workspace for full secret CRUD, password health auditing, categories, tags, and theme switching.
+2. **Dedicated System Tray Popover**: A 320px slim flyout anchored directly to the system tray displaying connection status, live TOTP countdowns, quick-access favorites, quick search, and one-click vault lock.
+3. **Full 3-Pane Workstation Manager**: The comprehensive 3-pane desktop workspace for full secret CRUD, password health auditing, categories, tags, TOTP countdown arc widget, and theme switching.
+
+All surfaces enforce **Authentication-on-Demand**: opening any surface when the vault is locked immediately prompts for the Master Password before displaying or decrypting any secrets. Backend switching between Local Database and Remote Server is supported in-place (via Tray right-click or Tray Popover, or CLI flags) without silent data migration.
 
 The presentation layer is decoupled from storage via a unified **`VaultDataProvider`** interface. The exact same UI runs identically whether pointing to a local database (`LocalVaultProvider`) or an encrypted remote server (`RemoteVaultProvider`).
 
@@ -219,37 +221,76 @@ class VaultDataProvider(ABC):
   - Manages application lifecycle via `QSystemTrayIcon` with `setQuitOnLastWindowClosed(False)`.
   - Clean In-Place Backend Switcher: Allows switching between Local Vault and Remote Server. Switching forcefully locks the active session, purges RAM keys, and connects to the alternate provider without cross-polluting or auto-migrating database records.
 
-### 5.4 Presentation Surfaces
+### 5.5 Presentation Surfaces & Multi-Mode Interaction
 
 #### 1. Floating Command Palette (`CommandPaletteDialog`)
-- **Appearance**: Frameless 600px wide dialog, dark slate styling, drop shadow, no window border. Centered in top third of screen.
-- **Global Hotkey**: Registered system-wide (e.g. `Ctrl+Shift+Space` on Windows/Linux, `Cmd+Shift+Space` on macOS).
-- **Behavior**:
-  - Typing immediately filters secrets via real-time fuzzy matching.
-  - Keyboard navigation: `Up`/`Down` arrows to navigate list.
-  - `Enter`: Copies password to clipboard with 30-second auto-erase and dismisses palette.
-  - `Ctrl+C` / `Cmd+C`: Copies username.
-  - `Ctrl+T` / `Cmd+T`: Copies 2FA TOTP code.
-  - `Escape` or focus loss: Instantly hides palette.
-  - `Ctrl+O`: Opens the Full Management Window for the selected secret.
+- **Appearance**: Frameless 640px wide dialog, dark Slate 900 styling, rounded container (14px), ambient drop shadow, no window border. Positioned centered horizontally in top third of the active display where user's cursor is located (`get_active_screen_geometry()`).
+- **Global Hotkey**: Registered system-wide via `GlobalHotkeyService` (`Ctrl+Shift+Space` on Windows/Linux, `Cmd+Shift+Space` on macOS).
+- **Authentication-on-Demand**: If invoked while the vault is locked, `_ensure_unlocked()` intercepts and immediately launches `ModernAuthDialog` before displaying any records. If canceled, the palette safely dismisses without leaking data.
+- **Behavior & Shortcuts**:
+  - Real-time fuzzy query filtering across secret names, usernames, categories, and URLs.
+  - `Up` / `Down` arrows to navigate results.
+  - `Enter`: Primary action — copies secret password to clipboard with 30-second auto-erase and instantly dismisses the palette.
+  - `Ctrl+C` / `Cmd+C`: Copies username to clipboard (30s auto-erase).
+  - `Ctrl+T` / `Cmd+T`: Generates and copies live RFC 6238 TOTP code (30s auto-erase).
+  - `Ctrl+O`: Opens the selected credential in the Full 3-Pane Workstation Window.
+  - `Escape` or focus loss (`changeEvent` / `focusOut`): Automatically dismisses and clears transient query state.
 
-#### 2. System Tray Controller (`SystemTrayManager`)
-- **Tray Menu Actions**:
-  - `Open Command Palette` (`Ctrl+Shift+Space`)
-  - `Open Vault Window`
-  - `Connection Status`: Shows "Local Vault" or "Connected: https://remote.host"
-  - `Lock Vault Now` (Clears memory and locks session)
-  - `Preferences & Backend Switcher` (Toggle Local vs Remote)
-  - `Quit SCM`
-- **Tray Click**: Left-click opens Command Palette; double-click opens Full Window.
+#### 2. Dedicated System Tray Popover (`TrayPopoverWindow`)
+- **Appearance**: 320px slim flyout widget anchored precisely to the system tray geometry (or cursor position if tray coordinates are unavailable). Frameless with high-contrast Slate 900 card styling and drop shadow. Auto-dismisses on blur / focus loss.
+- **Trigger**: Single left-click on the persistent system tray padlock icon (`QSystemTrayIcon.ActivationReason.Trigger`) or via "Quick Flyout..." in context menu.
+- **Authentication-on-Demand**: When opened while the vault is locked, `_ensure_unlocked()` prompts for the Master Password before populating the flyout.
+- **Features**:
+  - Live Connection Status header: Visual indicator dot and backend label (`Local` in emerald green or `Remote` in sky blue with endpoint tooltip).
+  - Quick Search box for instant text filtering of credentials.
+  - Quick Access Favorites List with live RFC 6238 TOTP countdown badges updated every second via internal `QTimer`.
+  - Double-click item action: Copies password to clipboard with 30s auto-erase and auto-dismisses.
+  - Footer Action Bar:
+    - `🔒 Lock`: Instantly purges active keys, locks provider, and hides flyout.
+    - `⚡ Palette`: Launches the centered Floating Command Palette.
+    - `Workstation ↗`: Opens the Full 3-Pane Management Window.
 
-#### 3. Full Management Window (`ModernMainWindow`)
-- Retrofitted to accept any `VaultDataProvider`.
-- Adds a status bar indicator showing active connection type: `[Mode: Local DB]` or `[Mode: Remote Server (dev-xxx)]`.
+#### 3. Full 3-Pane Workstation Manager (`ModernMainWindow`)
+- **Appearance**: Comprehensive management desktop window with 3-pane layout:
+  - **Left Pane (Sidebar)**: Quick filters (All Items, Favorites), Category breakdown (Logins, Cards, Secure Notes, Servers), Password Health Overview, Theme toggle (Dark/Light), and Classic UI switcher.
+  - **Center Pane (Item List)**: Filterable list with category badges, favorite stars, and real-time search.
+  - **Right Pane (Detail View)**: Full credential inspection, copy buttons for username/password, HaveIBeenPwned k-anonymity breach check, and animated **TOTP Countdown Arc** widget showing real-time seconds remaining.
+- **Status Bar Indicator**: Explicit status indicator displaying active provider mode, e.g. `[Mode: Local DB]` or `[Mode: Remote Server: https://server:8080]`.
+- **Inactivity & Session Hygiene**: Tracks user activity; auto-locks session after 60 seconds of inactivity, wiping RAM buffers. Double-clicking tray icon opens this window.
 
 ---
 
-## 6. Implementation Stages & Verification Plan
+## 6. Backend Switching Architecture: Local Vault vs Remote SCM Server
+
+SCM supports zero-downtime, safe switching between a local workstation database (`LocalVaultProvider`) and a remote SCM server daemon (`RemoteVaultProvider`):
+
+### 6.1 Switching Mechanisms
+1. **Via System Tray Context Menu**:
+   - Right-click the system tray icon -> select **"Switch Backend..."**.
+   - Select either **"Local Workstation Database"** or **"Remote Encrypted SCM Server"**.
+   - If Remote is selected, the client prompts for the server URL (e.g., `https://server-host:8080`).
+2. **Via Tray Popover**:
+   - Click "Switch Backend" / status badge in the tray popover to summon backend selection.
+3. **Via CLI / Launcher Flags**:
+   - Starting the client with `--remote https://<server-host>:8080` routes all desktop operations through `RemoteVaultProvider`.
+   - Starting without `--remote` defaults to `LocalVaultProvider` (or user configuration).
+   - CLI flags `--palette` or `--tray` can be combined with `--remote`.
+
+### 6.2 Safe Key Zeroization & Provider Swap Sequence
+When `switch_backend(new_provider)` is invoked:
+1. **Active Vault Lock**: The current provider's `lock_vault()` is forcefully executed, wiping `SecureBuffer` memory, zeroing derived encryption keys, and purging decrypted secrets from RAM.
+2. **Provider Reference Rebinding**: `SystemTrayManager` swaps provider references atomically across all presentation surfaces (`CommandPaletteDialog.set_provider()`, `TrayPopoverWindow.set_provider()`, and `ModernMainWindow.set_provider()`).
+3. **UI Display & Status Refresh**: Status bar, popover status badges, and tray tooltips are immediately updated to reflect the new backend.
+4. **Authentication-on-Demand**: The new backend starts in a locked state; any surface interaction triggers authentication against the newly selected backend.
+
+### 6.3 Strict Sovereign Backend Isolation (No Silent Migration)
+- **Sovereign Stores**: Local database (`vault.scmdb`) and remote SCM servers are treated as distinct, sovereign security realms.
+- **Zero Automatic Cross-Pollination**: Switching backends **never** automatically uploads, downloads, or synchronizes credentials between local disk and remote hosts.
+- **Manual Migration Path**: Users wishing to transfer credentials between environments do so deliberately via encrypted backup export/import (`.scmbackup`) or CSV export/import within the Workstation Manager.
+
+---
+
+## 7. Implementation Stages & Verification Plan
 
 1. **Stage 1: Core Provider Seam**
    - Define `VaultDataProvider` interface and adapt `SecretManagerService` into `LocalVaultProvider`.
@@ -262,11 +303,12 @@ class VaultDataProvider(ABC):
 
 3. **Stage 3: System Tray Integration**
    - Build `SystemTrayManager` linking Tray icon, Command Palette, and `ModernMainWindow`.
+   - Implement `TrayPopoverWindow` (320px slim flyout) with live TOTP countdowns and quick search.
    - Connect 60-second inactivity auto-lock and zeroization hooks.
 
 4. **Stage 4: CLI & Configuration Integration**
    - Provide command launcher arguments:
-     - `scm-gui` (Default: Local mode)
-     - `scm-gui --remote https://server:8080` (Remote server mode)
-     - `scm-gui --palette` (Launch directly into command palette)
-     - `scm-gui --tray` (Launch minimized to system tray)
+     - `SimpleCredentialManagerUi.py` (Default: Local mode)
+     - `SimpleCredentialManagerUi.py --remote https://server:8080` (Remote server mode)
+     - `SimpleCredentialManagerUi.py --palette` (Launch directly into command palette)
+     - `SimpleCredentialManagerUi.py --tray` (Launch minimized to system tray)

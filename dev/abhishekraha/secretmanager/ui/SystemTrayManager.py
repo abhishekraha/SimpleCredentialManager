@@ -240,9 +240,6 @@ class SystemTrayManager(QObject):
         """
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.show_popover()
-            # Also notify palette if invoked as quick action
-            if self.palette_dialog:
-                self.palette_dialog.show_centered()
         elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self._open_main_window()
 

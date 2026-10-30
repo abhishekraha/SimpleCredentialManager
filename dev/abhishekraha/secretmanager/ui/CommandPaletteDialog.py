@@ -256,10 +256,26 @@ class CommandPaletteDialog(QDialog):
 
         self.adjustSize()
 
+    def _ensure_unlocked(self) -> bool:
+        """Prompts for authentication if vault is currently locked."""
+        if self.provider and self.provider.is_unlocked():
+            return True
+
+        from dev.abhishekraha.secretmanager.ui.ModernAuthDialog import ModernAuthDialog
+        auth_dialog = ModernAuthDialog(service=self.provider, parent=self)
+        if auth_dialog.exec() == QDialog.DialogCode.Accepted and auth_dialog.authenticated:
+            return True
+        return False
+
     def show_centered(self) -> None:
         """
         Positions palette centered horizontally in top third of active monitor.
+        Prompts for unlock if locked.
         """
+        if not self._ensure_unlocked():
+            self.hide()
+            return
+
         self.search_input.clear()
         self.reload_records()
 

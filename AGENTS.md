@@ -10,14 +10,20 @@ Simple Credential Manager provides a multi-interface architecture:
 - **Presentation Layer**:
   - **Modern Desktop UI & Multi-Surface Presentation** (`PySide6` / Qt 6):
     - **Floating Command Palette** (`CommandPaletteDialog.py`): Raycast/Spotlight-style borderless search window summonable via global hotkey (`Ctrl+Shift+Space`), Enter-to-copy password with 30s auto-wipe, auto-dismiss on blur.
-    - **System Tray Daemon** (`SystemTrayManager.py`): Persistent icon with live TOTP countdowns, one-click vault lock, and in-place backend switching.
-    - **Full Management Window** (`ModernMainWindow.py`): 3-pane layout, dark/light theme, TOTP countdown arc widget, and password health auditing.
+    - **Dedicated System Tray Popover** (`TrayPopoverWindow.py` & `SystemTrayManager.py`): 320px slim flyout anchored directly to the system tray with live TOTP countdowns, quick-access favorites, quick search, one-click vault lock, and in-place backend switching.
+    - **Full 3-Pane Workstation Manager** (`ModernMainWindow.py`): Comprehensive 3-pane layout, dark/light theme, TOTP countdown arc widget, categories/tags, and password health auditing.
+    - **Authentication-on-Demand**: Opening any surface when locked immediately prompts for the Master Password before revealing or decrypting secrets.
   - **Modern Interactive & Headless CLI** (`Typer` + `Rich`) supporting styled tables, subcommands (`interactive`, `list`, `get`, `add`, `totp`, `health`, `server`), and scriptable headless JSON output.
   - **Modern Web Dashboard & Server Mode** (`FastAPI` + `Uvicorn` + WebCrypto) with out-of-band device whitelisting, subtle 404 unauthorized defense, transport payload encryption, and reverse-proxy subpath support.
   - **Classic Fallback Interfaces**: Legacy Tkinter GUI (`--classic` / `--tkinter`) and numbered legacy CLI (`--legacy`).
-- **Provider Abstraction Seam**: `VaultDataProvider` protocol decoupling presentation from persistence.
-  - `LocalVaultProvider`: Wraps `SecretManagerService` for local SQLite WAL database operations.
+- **Provider Abstraction Seam & Backend Switching**:
+  - `VaultDataProvider` protocol decoupling presentation from persistence.
+  - `LocalVaultProvider`: Wraps `SecretManagerService` for local SQLite WAL database operations (`vault.scmdb`).
   - `RemoteVaultProvider`: Communicates with remote SCM server daemon using client-side AES-256-GCM transport payload encryption, device enrollment tokens, and strict zero-trace offline defense.
+  - **Safe In-Place Backend Switch**:
+    - GUI: Right-click tray icon -> "Switch Backend..." or click "Switch Backend" in Tray popover, select Local Database or Remote Server, and specify endpoint URL. Forcefully locks active vault, zeroes RAM keys via `SecureBuffer`, and swaps data providers.
+    - CLI / Launchers: Start with `--remote https://<server-host>:8080` (optionally combined with `--palette` or `--tray`).
+    - **Strict Sovereign Isolation**: No silent data migration between backends. Each backend is an independent sovereign store; manual export/import (`.scmbackup` or CSV) can be performed if desired.
 - **Business Logic Layer**: `SecretManagerService` as the single authoritative facade for credentials, auth, lockouts, import/export, and audit logging.
 - **Storage Layer**: Dual-storage engine supporting high-performance row-level SQLite WAL database (`vault.scmdb`) and legacy file SerDe (`.simpleCredentialManager.secret` / `.simpleCredentialManager.metadata`).
 
@@ -210,9 +216,16 @@ Key Methods: `to_dict()`, `from_dict()`, `has_totp()`, getters and setters for a
 - **`SessionManager.py`**: In-memory ephemeral session tokens with 60-second inactivity auto-lock and cryptographic zeroization.
 - **`TransportCrypto.py`**: Device-bound AES-256-GCM request encryption routines keyed via HKDF-SHA256 derived from approved device tokens.
 
+### 7. Multi-Surface Presentation & Backend Switching Modules (`dev/abhishekraha/secretmanager/ui/` & `providers/`)
+- **`CommandPaletteDialog.py`**: Frameless 640px floating command palette summoned system-wide via `Ctrl+Shift+Space` (or macOS `Cmd+Shift+Space`). Performs fuzzy real-time searching, Enter-to-copy password with 30s auto-wipe, `Ctrl+T` to copy TOTP, `Ctrl+O` to open full detail view. Enforces authentication-on-demand if invoked while vault is locked.
+- **`TrayPopoverWindow.py`**: Slim 320px popover anchored directly to the system tray geometry. Provides live backend connection status, quick search, favorite items with per-second live TOTP countdowns, and quick lock. Enforces authentication-on-demand before displaying credentials.
+- **`SystemTrayManager.py`**: Persistent system tray icon controller (`QSystemTrayIcon`). Handles single-click popover trigger, double-click full workstation window activation, one-click vault lock, and in-place backend switching (`switch_backend()`) between Local Database and Remote SCM Server.
+- **`ModernMainWindow.py`**: 3-pane workstation management window displaying credential categories, tags, security health meters, and real-time TOTP countdown arc widget.
+- **`VaultDataProvider.py` / `LocalVaultProvider.py` / `RemoteVaultProvider.py`**: Seam decoupling UI widgets from SQLite WAL storage or remote encrypted HTTP endpoints. Backend switching safely locks the active provider, zeroes active memory keys, and swaps provider instances across all surfaces without automatic data migration.
+
 ---
 
-## 6. Authoritative `SecretManagerService` Method Signatures
+## 7. Authoritative `SecretManagerService` Method Signatures
 
 When modifying or calling `SecretManagerService` (`dev/abhishekraha/secretmanager/core/SecretManagerService.py`), AI agents must adhere strictly to the following method signatures:
 
@@ -282,7 +295,7 @@ class SecretManagerService:
 
 ---
 
-## 7. Launcher Scripts & Binary Builders
+## 8. Launcher Scripts & Binary Builders
 
 ### User Launchers (`scripts/launchers/`)
 Convenient wrapper scripts that auto-check dependencies and launch the default interface:
@@ -291,6 +304,12 @@ Convenient wrapper scripts that auto-check dependencies and launch the default i
 - **`scripts/launchers/SimpleCredentialManagerCli.bat`**: Windows launcher for Modern Typer CLI in a new terminal.
 - **`scripts/launchers/SimpleCredentialManagerCli.sh`**: POSIX launcher for Modern CLI.
 
+Launcher arguments supported by `SimpleCredentialManagerUi.py`:
+- `--remote https://<server-host>:8080`: Connects the desktop client to a remote SCM server.
+- `--palette`: Launches directly into the Floating Command Palette.
+- `--tray`: Launches minimized to the System Tray Daemon.
+- `--tkinter` / `--classic`: Forces fallback Tkinter classic interface.
+
 ### Standalone Local Builders (`scripts/local-builder/`)
 Automated PyInstaller scripts that compile standalone binaries embedding Python and all cryptography C-extensions:
 - **`scripts/local-builder/build-windows.bat`** & **`build-windows.ps1`**: Produces `dist/scm.exe` and `dist/SimpleCredentialManagerUi.exe`.
@@ -298,7 +317,7 @@ Automated PyInstaller scripts that compile standalone binaries embedding Python 
 
 ---
 
-## 8. Development & Testing Conventions
+## 9. Development & Testing Conventions
 
 ### Running Unit Tests
 All tests are implemented using Python's built-in `unittest` framework:

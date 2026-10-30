@@ -8,6 +8,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QPoint, QRect, QTimer, Signal, QEvent
 from PySide6.QtGui import QColor, QFont, QCursor, QGuiApplication
 from PySide6.QtWidgets import (
+    QDialog,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -321,10 +322,26 @@ class TrayPopoverWindow(QWidget):
         if current_row >= 0 and current_row < self.list_widget.count():
             self.list_widget.setCurrentRow(current_row)
 
+    def _ensure_unlocked(self) -> bool:
+        """Prompts for authentication if vault is currently locked."""
+        if self.provider and self.provider.is_unlocked():
+            return True
+
+        from dev.abhishekraha.secretmanager.ui.ModernAuthDialog import ModernAuthDialog
+        auth_dialog = ModernAuthDialog(service=self.provider, parent=self)
+        if auth_dialog.exec() == QDialog.DialogCode.Accepted and auth_dialog.authenticated:
+            return True
+        return False
+
     def show_anchored(self, tray_rect: Optional[QRect] = None) -> None:
         """
         Positions the popover nicely above/below the tray icon or near cursor.
+        Prompts for unlock if locked.
         """
+        if not self._ensure_unlocked():
+            self.hide()
+            return
+
         self.reload_data()
         self.search_box.clear()
 

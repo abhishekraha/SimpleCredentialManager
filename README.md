@@ -102,11 +102,17 @@ Designed for self-hosted home labs, VPS instances, or remote access behind Nginx
 
 ### 1. Modern Desktop UI & Multi-Surface Presentation
 Built with PySide6:
-- **3 Presentation Surfaces**:
-  - **Floating Command Palette** (`Ctrl+Shift+Space`): Spotlight/Raycast-style borderless search box centered on the active screen where your cursor is located. Sub-second fuzzy search, Enter to copy password with 30s auto-wipe, `Ctrl+T` to copy TOTP, `Ctrl+O` to open full detail view.
-  - **Persistent System Tray Daemon**: Stays minimized in your notification tray with live status, one-click vault lock, and in-place backend switching.
-  - **Full 3-Pane Workstation Window**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, details panel, and TOTP countdown arc widget.
-- **Local & Remote Server Dual Backend**:
+- **3 Presentation Modes**:
+  1. **Floating Command Palette** (`Ctrl+Shift+Space` / `Cmd+Shift+Space`): Spotlight/Raycast-style borderless search box centered on the active screen where your cursor is located. Sub-second fuzzy search, Enter to copy password with 30s auto-wipe, `Ctrl+T` to copy TOTP, `Ctrl+O` to open full detail view in the workstation window. Auto-dismisses on blur or Escape.
+  2. **Dedicated System Tray Popover**: 320px slim flyout anchored directly to the system tray padlock icon (opened via single left-click). Features live backend connection status indicator, quick search, favorite credentials with per-second live TOTP countdowns, and quick vault lock.
+  3. **Full 3-Pane Workstation Manager**: Collapsible sidebar (All, Favorites, Categories, Security Health), live searchable credential list, details panel, HaveIBeenPwned k-anonymity leak audits, and animated **TOTP Countdown Arc** widget showing real-time seconds remaining. Double-clicking tray icon opens this window.
+- **Authentication-on-Demand**:
+  - Opening any presentation surface (Command Palette, Tray Popover, or Full Workstation Window) while the vault is locked immediately prompts for the Master Password before displaying or decrypting any credentials.
+- **Local Desktop Vault vs Remote SCM Server Client**:
+  - Switch backends easily without restarting:
+    - **In GUI**: Right-click the system tray icon -> select **"Switch Backend..."** (or click in the Tray Popover), choose **Local Workstation Database** or **Remote Encrypted SCM Server**, and enter your server URL. Switching immediately locks the active vault, safely zeroes memory keys via `SecureBuffer`, and connects to the selected provider.
+    - **In CLI / Launchers**: Start the client with `--remote https://<server-host>:8080` to target a remote server directly.
+    - **No Silent Data Migration**: Each backend is completely sovereign; switching does not automatically sync or migrate records. Manual migration can be performed at any time via encrypted backup (`.scmbackup`) or CSV export/import.
   ```bash
   # Launch default 3-pane local workstation management window
   python SimpleCredentialManagerUi.py
@@ -114,7 +120,7 @@ Built with PySide6:
   # Launch floating command palette directly (summonable anytime via Ctrl+Shift+Space)
   python SimpleCredentialManagerUi.py --palette
 
-  # Launch minimized to system tray daemon
+  # Launch minimized to system tray daemon (slim popover on single-click)
   python SimpleCredentialManagerUi.py --tray
 
   # Connect desktop client to a remote SCM server daemon over encrypted transport
