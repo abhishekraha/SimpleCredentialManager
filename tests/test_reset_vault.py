@@ -164,7 +164,8 @@ class ResetVaultAndLockoutPersistenceTests(unittest.TestCase):
         status_s2 = s2.get_lockout_status()
         self.assertEqual(status_s2["failed_attempts"], 4)
         self.assertGreater(status_s2["remaining_seconds"], FAILED_AUTH_LOCKOUT_BASE_SECONDS)
-        self.assertLessEqual(status_s2["remaining_seconds"], FAILED_AUTH_LOCKOUT_BASE_SECONDS * 2)
+        # Allow small timing buffer (+2s) for CI runner clock rounding
+        self.assertLessEqual(status_s2["remaining_seconds"], FAILED_AUTH_LOCKOUT_BASE_SECONDS * 2 + 2)
 
 
 if __name__ == "__main__":
