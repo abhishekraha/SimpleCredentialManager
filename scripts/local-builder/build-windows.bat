@@ -21,9 +21,9 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt pyinstaller
 
 echo.
-echo [*] Building Standalone CLI Executable (dist/scm.exe)...
+echo [*] Building Standalone CLI Executable (dist/SimpleCredentialManager-CLI.exe)...
 python -m PyInstaller --clean --noconfirm --onefile ^
-    --name scm ^
+    --name SimpleCredentialManager-CLI ^
     --console ^
     --collect-all cryptography ^
     --collect-all pwinput ^
@@ -41,9 +41,9 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [*] Building Standalone Desktop UI Executable (dist/SimpleCredentialManagerUi.exe)...
+echo [*] Building Standalone Desktop UI Executable (dist/SimpleCredentialManager-UI.exe)...
 python -m PyInstaller --clean --noconfirm --onefile ^
-    --name SimpleCredentialManagerUi ^
+    --name SimpleCredentialManager-UI ^
     --noconsole ^
     --collect-all cryptography ^
     --collect-all pwinput ^
@@ -66,8 +66,8 @@ echo ======================================================
 echo    Build Completed Successfully!
 echo ======================================================
 echo Executables created:
-echo   - CLI:  %CD%\dist\scm.exe
-echo   - GUI:  %CD%\dist\SimpleCredentialManagerUi.exe
+echo   - CLI:  %CD%\dist\SimpleCredentialManager-CLI.exe
+echo   - GUI:  %CD%\dist\SimpleCredentialManager-UI.exe
 echo.
 echo These are standalone executables. You can move them to any
 echo Windows computer without installing Python!

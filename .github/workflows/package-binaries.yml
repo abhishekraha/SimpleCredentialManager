@@ -57,18 +57,12 @@ jobs:
         include:
           - os: windows-latest
             platform_id: windows-x64
-            cli_name: scm.exe
-            ui_name: SimpleCredentialManagerUi.exe
             archive_ext: zip
           - os: macos-latest
             platform_id: macos-x64
-            cli_name: scm
-            ui_name: SimpleCredentialManagerUi
             archive_ext: tar.gz
           - os: ubuntu-latest
             platform_id: linux-x64
-            cli_name: scm
-            ui_name: SimpleCredentialManagerUi
             archive_ext: tar.gz
 
     runs-on: ${{ matrix.os }}
@@ -93,7 +87,7 @@ jobs:
         shell: bash
         run: |
           pyinstaller --clean --noconfirm --onefile \
-            --name scm \
+            --name SimpleCredentialManager-CLI \
             --console \
             --collect-all cryptography \
             --collect-all pwinput \
@@ -107,7 +101,7 @@ jobs:
         shell: bash
         run: |
           pyinstaller --clean --noconfirm --onefile \
-            --name SimpleCredentialManagerUi \
+            --name SimpleCredentialManager-UI \
             ${{ runner.os == 'Windows' && '--noconsole --add-data "dev;dev"' || (runner.os == 'macOS' && '--windowed --add-data "dev:dev"' || '--add-data "dev:dev"') }} \
             --collect-all cryptography \
             --collect-all pwinput \
@@ -127,31 +121,31 @@ jobs:
           VERSION_SUFFIX="${TAG:-latest}"
 
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "dist/scm.exe" "artifacts/scm-${PLATFORM}.exe"
-            cp "dist/SimpleCredentialManagerUi.exe" "artifacts/SimpleCredentialManagerUi-${PLATFORM}.exe"
+            cp "dist/SimpleCredentialManager-CLI.exe" "artifacts/SimpleCredentialManager-CLI-${PLATFORM}.exe"
+            cp "dist/SimpleCredentialManager-UI.exe" "artifacts/SimpleCredentialManager-UI-${PLATFORM}.exe"
             
             # Create a combined bundle zip containing both CLI and UI
-            BUNDLE_DIR="scm-bundle-${PLATFORM}-${VERSION_SUFFIX}"
+            BUNDLE_DIR="SimpleCredentialManager-bundle-${PLATFORM}-${VERSION_SUFFIX}"
             mkdir -p "$BUNDLE_DIR"
-            cp "dist/scm.exe" "$BUNDLE_DIR/"
-            cp "dist/SimpleCredentialManagerUi.exe" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManager-CLI.exe" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManager-UI.exe" "$BUNDLE_DIR/"
             cp "README.md" "$BUNDLE_DIR/" || true
             cp "LICENSE" "$BUNDLE_DIR/" || true
-            powershell -Command "Compress-Archive -Path '${BUNDLE_DIR}' -DestinationPath 'artifacts/scm-bundle-${PLATFORM}-${VERSION_SUFFIX}.zip'"
+            powershell -Command "Compress-Archive -Path '${BUNDLE_DIR}' -DestinationPath 'artifacts/SimpleCredentialManager-bundle-${PLATFORM}-${VERSION_SUFFIX}.zip'"
           else
-            chmod +x "dist/scm"
-            chmod +x "dist/SimpleCredentialManagerUi"
-            cp "dist/scm" "artifacts/scm-${PLATFORM}"
-            cp "dist/SimpleCredentialManagerUi" "artifacts/SimpleCredentialManagerUi-${PLATFORM}"
+            chmod +x "dist/SimpleCredentialManager-CLI"
+            chmod +x "dist/SimpleCredentialManager-UI"
+            cp "dist/SimpleCredentialManager-CLI" "artifacts/SimpleCredentialManager-CLI-${PLATFORM}"
+            cp "dist/SimpleCredentialManager-UI" "artifacts/SimpleCredentialManager-UI-${PLATFORM}"
             
             # Create a combined tar.gz archive
-            BUNDLE_DIR="scm-bundle-${PLATFORM}-${VERSION_SUFFIX}"
+            BUNDLE_DIR="SimpleCredentialManager-bundle-${PLATFORM}-${VERSION_SUFFIX}"
             mkdir -p "$BUNDLE_DIR"
-            cp "dist/scm" "$BUNDLE_DIR/"
-            cp "dist/SimpleCredentialManagerUi" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManager-CLI" "$BUNDLE_DIR/"
+            cp "dist/SimpleCredentialManager-UI" "$BUNDLE_DIR/"
             cp "README.md" "$BUNDLE_DIR/" || true
             cp "LICENSE" "$BUNDLE_DIR/" || true
-            tar -czvf "artifacts/scm-bundle-${PLATFORM}-${VERSION_SUFFIX}.tar.gz" "$BUNDLE_DIR"
+            tar -czvf "artifacts/SimpleCredentialManager-bundle-${PLATFORM}-${VERSION_SUFFIX}.tar.gz" "$BUNDLE_DIR"
           fi
 
       - name: Upload Platform Artifacts
@@ -183,7 +177,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          pyinstaller --clean --noconfirm --onedir --name scm \
+          pyinstaller --clean --noconfirm --onedir --name SimpleCredentialManager-CLI \
             --collect-all cryptography \
             --collect-all pwinput \
             --collect-all pyotp \
@@ -193,11 +187,11 @@ jobs:
             SimpleCredentialManagerCli.py
 
           mkdir -p AppDir/usr/bin
-          cp -r dist/scm/* AppDir/usr/bin/
+          cp -r dist/SimpleCredentialManager-CLI/* AppDir/usr/bin/
           cat << 'EOF' > AppDir/AppRun
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "${0}")")"
-          exec "${HERE}/usr/bin/scm" "$@"
+          exec "${HERE}/usr/bin/SimpleCredentialManager-CLI" "$@"
           EOF
           chmod +x AppDir/AppRun
 
@@ -213,7 +207,7 @@ jobs:
 
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir artifacts/scm-linux-x86_64.AppImage || true
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir artifacts/SimpleCredentialManager-linux-x86_64.AppImage || true
 
       - name: Upload Linux AppImage Artifact
         if: hashFiles('artifacts/*.AppImage') != ''

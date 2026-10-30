@@ -36,9 +36,9 @@ if (Test-Path $compatDll) {
 }
 
 Write-Host ""
-Write-Host "[*] Building Standalone CLI (dist\scm.exe)..." -ForegroundColor Yellow
+Write-Host "[*] Building Standalone CLI (dist\SimpleCredentialManager-CLI.exe)..." -ForegroundColor Yellow
 & python -m PyInstaller --clean --noconfirm --onefile `
-    --name scm `
+    --name SimpleCredentialManager-CLI `
     --console `
     --collect-all cryptography `
     --collect-all pwinput `
@@ -50,9 +50,9 @@ Write-Host "[*] Building Standalone CLI (dist\scm.exe)..." -ForegroundColor Yell
     SimpleCredentialManagerCli.py
 
 Write-Host ""
-Write-Host "[*] Building Standalone Desktop UI (dist\SimpleCredentialManagerUi.exe)..." -ForegroundColor Yellow
+Write-Host "[*] Building Standalone Desktop UI (dist\SimpleCredentialManager-UI.exe)..." -ForegroundColor Yellow
 & python -m PyInstaller --clean --noconfirm --onefile `
-    --name SimpleCredentialManagerUi `
+    --name SimpleCredentialManager-UI `
     --noconsole `
     --collect-all cryptography `
     --collect-all pwinput `
@@ -69,8 +69,8 @@ Write-Host "======================================================" -ForegroundC
 Write-Host "   Build Completed Successfully!                      " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host "Standalone Executables Generated:"
-Write-Host "  - CLI:  $RepoRoot\dist\scm.exe" -ForegroundColor White
-Write-Host "  - GUI:  $RepoRoot\dist\SimpleCredentialManagerUi.exe" -ForegroundColor White
+Write-Host "  - CLI:  $RepoRoot\dist\SimpleCredentialManager-CLI.exe" -ForegroundColor White
+Write-Host "  - GUI:  $RepoRoot\dist\SimpleCredentialManager-UI.exe" -ForegroundColor White
 Write-Host ""
 Write-Host "These executables run on any 64-bit Windows machine without Python!" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Green
