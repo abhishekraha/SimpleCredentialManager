@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## v3.1.0 - 2026-10-30
+### Added
+- **SCM Server Mode & Web Dashboard**: Zero-dependency, modern dark-themed web dashboard and REST API (`FastAPI` + `Uvicorn`) supporting standalone hosting and Nginx subpath reverse proxy integration (e.g. `/password/`).
+- **Out-of-Band Physical Device Whitelisting**: Cryptographically secure device enrollment (`/enroll?secret=...`) requiring explicit local approval on the server host machine via `scm server devices approve <fingerprint>`.
+- **Subtle Unauthorized Defense**: Returns nondescript `HTTP 404 Not Found` with `{"detail": "Service unavailable"}` for unauthorized devices, preventing network probes from detecting service presence.
+- **Device-Bound Transport Payload Encryption**: Automatic client-side and server-side AES-256-GCM encryption of sensitive request payloads (including master password and secret CRUD) keyed via HKDF-SHA256 derived from the approved device token.
+- **Docker Containerization**: Production-ready `Dockerfile` and `docker-compose.yml` with non-root security UID 10001, healthchecks, persistent volumes for vault data/config, and an `/usr/local/bin/scm` CLI alias.
+- **Server CLI Commands**: Integrated `scm server start`, `scm server devices list`, `scm server devices approve`, `scm server devices revoke`, and `scm server devices token` subcommands into the modern CLI.
+
+### Fixed
+- Fixed session key derivation during authentication in `SecretManagerService` ensuring SQLite row decryption succeeds reliably on unlocked vaults.
+- Fixed web dashboard session preservation across browser refreshes by normalizing session token keys and endpoints.
+- Prevented premature device re-registration when a device is already approved.
+- Prevented device enrollment requests on uninitialized server vaults.
+
 ## v3.0.0 - 2026-10-30
 ### Added
 - **Modern PySide6 Desktop GUI**: Full-featured 3-pane responsive desktop interface with dark/light themes, reactive live search, category grouping, tags, and favorites.

@@ -6,10 +6,11 @@ This document details the system design, cryptographic implementation, storage m
 
 ## 1. High-Level Architecture
 
-Simple Credential Manager provides a dual-interface architecture:
+Simple Credential Manager provides a multi-interface architecture:
 - **Presentation Layer**:
   - **Modern Desktop UI** (`PySide6` / Qt 6) with 3-pane layout, dark/light theme, TOTP countdown arc widget, and password health auditing.
-  - **Modern Interactive & Headless CLI** (`Typer` + `Rich`) supporting styled tables, subcommands (`interactive`, `list`, `get`, `add`, `totp`, `health`), and scriptable headless JSON output.
+  - **Modern Interactive & Headless CLI** (`Typer` + `Rich`) supporting styled tables, subcommands (`interactive`, `list`, `get`, `add`, `totp`, `health`, `server`), and scriptable headless JSON output.
+  - **Modern Web Dashboard & Server Mode** (`FastAPI` + `Uvicorn` + WebCrypto) with out-of-band device whitelisting, subtle 404 unauthorized defense, transport payload encryption, and reverse-proxy subpath support.
   - **Classic Fallback Interfaces**: Legacy Tkinter GUI (`--classic` / `--tkinter`) and numbered legacy CLI (`--legacy`).
 - **Business Logic Layer**: `SecretManagerService` as the single authoritative facade for credentials, auth, lockouts, import/export, and audit logging.
 - **Storage Layer**: Dual-storage engine supporting high-performance row-level SQLite WAL database (`vault.scmdb`) and legacy file SerDe (`.simpleCredentialManager.secret` / `.simpleCredentialManager.metadata`).
@@ -196,6 +197,12 @@ Key Methods: `to_dict()`, `from_dict()`, `has_totp()`, getters and setters for a
 
 ### 5. `ReleaseUpdateService` (`dev/abhishekraha/secretmanager/core/ReleaseUpdateService.py`)
 - Checks GitHub API for updates, caches status, alerts on outdated versions, and supports in-place self-upgrading.
+
+### 6. SCM Server Modules (`dev/abhishekraha/secretmanager/server/`)
+- **`ServerApp.py`**: FastAPI application factory (`create_app`) mounting REST endpoints, subtle 404 gatekeeper middleware, transport payload decryption, and zero-dependency SPA dashboard.
+- **`DeviceRegistry.py`**: Out-of-band physical device whitelisting, enrollment token generation/rotation, device registration, and host-driven CLI approval/revocation.
+- **`SessionManager.py`**: In-memory ephemeral session tokens with 60-second inactivity auto-lock and cryptographic zeroization.
+- **`TransportCrypto.py`**: Device-bound AES-256-GCM request encryption routines keyed via HKDF-SHA256 derived from approved device tokens.
 
 ---
 

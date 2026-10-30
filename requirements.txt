@@ -4,3 +4,6 @@ typer
 rich
 pyotp
 PySide6
+fastapi
+uvicorn
+httpx

@@ -22,6 +22,8 @@ from dev.abhishekraha.secretmanager.config.SecretManagerConfig import (
 from dev.abhishekraha.secretmanager.core.PasswordHealthService import PasswordHealthService
 from dev.abhishekraha.secretmanager.core.SecretManagerService import SecretManagerService
 from dev.abhishekraha.secretmanager.core.TotpService import TotpService
+from dev.abhishekraha.secretmanager.server.DeviceRegistry import DeviceRegistry
+from dev.abhishekraha.secretmanager.server.ServerApp import create_app
 from dev.abhishekraha.secretmanager.utils.SecureClipboardManager import SecureClipboardManager
 
 # Typer app initialization
@@ -31,6 +33,20 @@ app = typer.Typer(
     no_args_is_help=False,
     invoke_without_command=True,
 )
+
+server_app = typer.Typer(
+    name="server",
+    help="Manage and run SCM Server Mode.",
+    no_args_is_help=True,
+)
+devices_app = typer.Typer(
+    name="devices",
+    help="Manage enrolled client devices and tokens.",
+    no_args_is_help=True,
+)
+
+server_app.add_typer(devices_app, name="devices")
+app.add_typer(server_app, name="server")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -433,6 +449,147 @@ def health_audit(
         for r in report["reused_secrets"]:
             reused_table.add_row(", ".join(r["secret_names"]), str(r["count"]))
         console.print(reused_table)
+
+
+# ==============================================================================
+# SCM Server Subcommands
+# ==============================================================================
+
+@server_app.command("start", help="Start the SCM background API server.")
+def server_start(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Bind host address."),
+    port: int = typer.Option(8080, "--port", "-p", help="Bind port number."),
+    prefix: str = typer.Option("", "--prefix", help="API URL prefix path (e.g. /password)."),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload for development."),
+):
+    """Starts the FastAPI SCM server via uvicorn with an informational banner."""
+    import uvicorn
+
+    registry = DeviceRegistry()
+    token = registry.get_or_create_enrollment_token()
+
+    clean_prefix = prefix.rstrip("/") if prefix else ""
+    enroll_url = f"http://{host}:{port}{clean_prefix}/enroll?secret={token}"
+
+    banner_text = (
+        f"[bold green]SCM Server Mode Active[/bold green]\n\n"
+        f"[bold cyan]Host:[/bold cyan] {host}\n"
+        f"[bold cyan]Port:[/bold cyan] {port}\n"
+        f"[bold cyan]Prefix:[/bold cyan] {clean_prefix or '/'}\n"
+        f"[bold cyan]Token:[/bold cyan] {token}"
+    )
+    console.print(Panel(banner_text, title="Simple Credential Manager Server", border_style="cyan"))
+    console.print("\n[bold yellow]Secret Enrollment URL (one-click copy):[/bold yellow]")
+    console.print(enroll_url, overflow="ignore", no_wrap=True)
+    console.print("")
+
+    server_fastapi_app = create_app(prefix=prefix)
+    uvicorn_kwargs = {
+        "host": host,
+        "port": port,
+        "root_path": clean_prefix,
+    }
+    if reload:
+        uvicorn_kwargs["reload"] = True
+
+    uvicorn.run(server_fastapi_app, **uvicorn_kwargs)
+
+
+@devices_app.command("list", help="List all enrolled client devices.")
+def devices_list():
+    """Lists registered client devices in a rich table with their authorization status."""
+    registry = DeviceRegistry()
+    devices = registry.list_devices()
+
+    if not devices:
+        console.print("[yellow]No registered devices found.[/yellow]")
+        return
+
+    table = Table(title="Registered Devices", box=box.ROUNDED)
+    table.add_column("Device ID", style="bold cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Fingerprint")
+    table.add_column("Status")
+    table.add_column("Client IP")
+    table.add_column("Enrolled At")
+    table.add_column("Approved At")
+
+    status_colors = {
+        "PENDING": "bold yellow",
+        "APPROVED": "bold green",
+        "REVOKED": "bold red",
+    }
+
+    for dev in devices:
+        raw_status = dev.get("status", "PENDING").upper()
+        color = status_colors.get(raw_status, "white")
+        formatted_status = f"[{color}]{raw_status}[/{color}]"
+
+        device_id = dev.get("device_id", "")
+        device_name = dev.get("device_name", "")
+        fingerprint = dev.get("fingerprint", "")
+        client_ip = dev.get("client_ip", "") or "-"
+        enrolled_at = dev.get("created_at", "") or "-"
+        # approved_at/updated_at
+        approved_at = dev.get("updated_at", "") if raw_status == "APPROVED" else (dev.get("approved_at", "") or "-")
+
+        table.add_row(
+            device_id,
+            device_name,
+            fingerprint,
+            formatted_status,
+            client_ip,
+            enrolled_at,
+            approved_at,
+        )
+
+    console.print(table)
+
+
+@devices_app.command("approve", help="Approve an enrolled device by ID or fingerprint.")
+def devices_approve(
+    fingerprint_or_id: str = typer.Argument(..., help="Device ID or Fingerprint to approve."),
+):
+    """Approves a pending or revoked device."""
+    registry = DeviceRegistry()
+    success = registry.approve_device(fingerprint_or_id)
+    if success:
+        console.print(f"[bold green]Device '{fingerprint_or_id}' has been approved successfully.[/bold green]")
+    else:
+        console.print(f"[bold red]Device '{fingerprint_or_id}' not found.[/bold red]")
+        raise typer.Exit(code=1)
+
+
+@devices_app.command("revoke", help="Revoke device access by ID or fingerprint.")
+def devices_revoke(
+    fingerprint_or_id: str = typer.Argument(..., help="Device ID or Fingerprint to revoke."),
+):
+    """Revokes access for a device."""
+    registry = DeviceRegistry()
+    success = registry.revoke_device(fingerprint_or_id)
+    if success:
+        console.print(f"[bold green]Device '{fingerprint_or_id}' has been revoked successfully.[/bold green]")
+    else:
+        console.print(f"[bold red]Device '{fingerprint_or_id}' not found.[/bold red]")
+        raise typer.Exit(code=1)
+
+
+@devices_app.command("token", help="Show or rotate the secret enrollment token.")
+def devices_token(
+    show: bool = typer.Option(False, "--show", help="Display the current enrollment token."),
+    rotate: bool = typer.Option(False, "--rotate", help="Rotate and generate a new enrollment token."),
+):
+    """Displays or rotates the secret enrollment token."""
+    registry = DeviceRegistry()
+    if rotate:
+        new_token = registry.rotate_enrollment_token()
+        console.print(f"[bold green]New enrollment token generated:[/bold green] [bold cyan]{new_token}[/bold cyan]")
+        console.print(f"Enrollment URL: [yellow]/enroll?secret={new_token}[/yellow]")
+    else:
+        # Default action is --show
+        current_token = registry.get_or_create_enrollment_token()
+        console.print(f"[bold green]Current enrollment token:[/bold green] [bold cyan]{current_token}[/bold cyan]")
+        console.print(f"Enrollment URL: [yellow]/enroll?secret={current_token}[/yellow]")
 
 
 def main():

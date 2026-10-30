@@ -1,0 +1,27 @@
+services:
+  scm:
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+    image: simplecredentialmanager:latest
+    container_name: scm-server
+    restart: unless-stopped
+    ports:
+      # Change the left port to any random or custom host port (e.g. 8443:8080)
+      - "8080:8080"
+    environment:
+      - SCM_HOST=0.0.0.0
+      - SCM_PORT=8080
+      # If running behind an Nginx subpath like /password/, set:
+      # - SCM_PREFIX=/password
+    volumes:
+      # Persistent vault database storage
+      - scm-data:/home/scm/.simpleCredentialManager
+      # Persistent config, device whitelist, and audit logs
+      - scm-config:/home/scm/.config/.simpleCredentialManager
+
+volumes:
+  scm-data:
+    name: scm-vault-data
+  scm-config:
+    name: scm-vault-config

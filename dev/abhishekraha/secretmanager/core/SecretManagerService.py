@@ -123,6 +123,7 @@ class SecretManagerService:
             had_failed_attempts = metadata.get_failed_auth_attempts() > 0
             if had_failed_attempts:
                 metadata.reset_failed_auth_attempts()
+            CodecUtils.derive_key(master_password, metadata.get_salt())
             try:
                 self._load_secrets()
             except ValueError as exc:
